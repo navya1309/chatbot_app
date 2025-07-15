@@ -1,6 +1,13 @@
+import 'package:chatbot_app_1/core/utils.dart';
+import 'package:chatbot_app_1/pages/auth/provider/auth_provider.dart';
+import 'package:chatbot_app_1/pages/auth/signup_page.dart';
+import 'package:chatbot_app_1/pages/home/home_page.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
   @override
   _LoginPageState createState() => _LoginPageState();
 }
@@ -10,49 +17,6 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
-  bool _isLoading = false;
-  bool _rememberMe = false;
-
-  void _handleLogin() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Simulate login delay
-      await Future.delayed(Duration(seconds: 2));
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      // Navigate to chat screen or show success
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Login successful!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Here you would typically navigate to your chat screen
-      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ChatbotHomeScreen()));
-    }
-  }
-
-  void _handleGoogleLogin() {
-    // Handle Google login
-    print('Google login pressed');
-  }
-
-  void _handleForgotPassword() {
-    // Handle forgot password
-    print('Forgot password pressed');
-  }
-
-  void _handleSignUp() {
-    // Handle sign up navigation
-    print('Sign up pressed');
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,11 +25,11 @@ class _LoginPageState extends State<LoginPage> {
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(height: 60),
+                const SizedBox(height: 60),
 
                 // Logo/Icon Section
                 Center(
@@ -78,14 +42,14 @@ class _LoginPageState extends State<LoginPage> {
                           color: Colors.blue[600],
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.smart_toy,
                           color: Colors.white,
                           size: 40,
                         ),
                       ),
-                      SizedBox(height: 24),
-                      Text(
+                      const SizedBox(height: 24),
+                      const Text(
                         'Welcome Back!',
                         style: TextStyle(
                           fontSize: 28,
@@ -93,7 +57,7 @@ class _LoginPageState extends State<LoginPage> {
                           color: Colors.black87,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
                         'Sign in to continue chatting with your AI assistant',
                         style: TextStyle(
@@ -106,7 +70,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
 
-                SizedBox(height: 48),
+                const SizedBox(height: 48),
 
                 // Login Form
                 Form(
@@ -115,7 +79,7 @@ class _LoginPageState extends State<LoginPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Email Field
-                      Text(
+                      const Text(
                         'Email',
                         style: TextStyle(
                           fontSize: 16,
@@ -123,7 +87,7 @@ class _LoginPageState extends State<LoginPage> {
                           color: Colors.black87,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
@@ -158,10 +122,10 @@ class _LoginPageState extends State<LoginPage> {
                         },
                       ),
 
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
                       // Password Field
-                      Text(
+                      const Text(
                         'Password',
                         style: TextStyle(
                           fontSize: 16,
@@ -169,7 +133,7 @@ class _LoginPageState extends State<LoginPage> {
                           color: Colors.black87,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: !_isPasswordVisible,
@@ -216,90 +180,68 @@ class _LoginPageState extends State<LoginPage> {
                         },
                       ),
 
-                      SizedBox(height: 16),
-
-                      // Remember Me and Forgot Password
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Checkbox(
-                                value: _rememberMe,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _rememberMe = value!;
-                                  });
-                                },
-                                activeColor: Colors.blue[600],
-                              ),
-                              Text(
-                                'Remember me',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                          TextButton(
-                            onPressed: _handleForgotPassword,
-                            child: Text(
-                              'Forgot Password?',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.blue[600],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      SizedBox(height: 32),
+                      const SizedBox(height: 16),
 
                       // Login Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue[600],
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                      Consumer<AuthenticationProvider>(
+                          builder: (context, provider, _) {
+                        return SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: provider.loading
+                                ? null
+                                : () async {
+                                    final res = await provider.signInWithEmail(
+                                        _emailController.text.trim(),
+                                        _passwordController.text);
+                                    if (context.mounted) {
+                                      if (res) {
+                                        moveReplace(
+                                            context, ChatbotHomeScreen());
+                                      } else {
+                                        showSnackBar(
+                                            context, 'Smoething went wrong!!');
+                                      }
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue[600],
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
                             ),
-                            elevation: 0,
+                            child: provider.loading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white),
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Sign In',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                           ),
-                          child: _isLoading
-                              ? SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white),
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text(
-                                  'Sign In',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                        ),
-                      ),
+                        );
+                      }),
 
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
                       // Divider
                       Row(
                         children: [
                           Expanded(child: Divider(color: Colors.grey[300])),
                           Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Text(
                               'or',
                               style: TextStyle(
@@ -312,33 +254,7 @@ class _LoginPageState extends State<LoginPage> {
                         ],
                       ),
 
-                      SizedBox(height: 24),
-
-                      // Google Login Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: OutlinedButton.icon(
-                          onPressed: _handleGoogleLogin,
-                          icon: Icon(Icons.google, color: Colors.red),
-                          label: Text(
-                            'Continue with Google',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            side: BorderSide(color: Colors.grey[300]!),
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: 32),
+                      const SizedBox(height: 24),
 
                       // Sign Up Link
                       Center(
@@ -353,7 +269,9 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                             TextButton(
-                              onPressed: _handleSignUp,
+                              onPressed: () {
+                                moveTo(context, SignUpPage());
+                              },
                               child: Text(
                                 'Sign Up',
                                 style: TextStyle(
@@ -367,7 +285,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
 
-                      SizedBox(height: 32),
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),

@@ -1,4 +1,8 @@
+import 'package:chatbot_app_1/core/utils.dart';
+import 'package:chatbot_app_1/pages/auth/provider/auth_provider.dart';
+import 'package:chatbot_app_1/pages/home/home_page.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class SignUpPage extends StatefulWidget {
   @override
@@ -13,55 +17,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _confirmPasswordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
-  bool _isLoading = false;
   bool _acceptTerms = false;
-
-  void _handleSignUp() async {
-    if (_formKey.currentState!.validate()) {
-      if (!_acceptTerms) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Please accept the terms and conditions'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Simulate sign up delay
-      await Future.delayed(Duration(seconds: 2));
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Account created successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Navigate to login or chat screen
-      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginPage()));
-    }
-  }
-
-  void _handleGoogleSignUp() {
-    // Handle Google sign up
-    print('Google sign up pressed');
-  }
-
-  void _handleSignIn() {
-    // Navigate to login page
-    print('Sign in pressed');
-    // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginPage()));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -397,40 +353,61 @@ class _SignUpPageState extends State<SignUpPage> {
                       SizedBox(height: 32),
 
                       // Sign Up Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleSignUp,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue[600],
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: _isLoading
-                              ? SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white),
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text(
-                                  'Create Account',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
+                      Consumer<AuthenticationProvider>(
+                        builder: (context, provider, _) {
+                          return SizedBox(
+                            width: double.infinity,
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: provider.loading
+                                  ? null
+                                  : () async {
+                                      final res =
+                                          await provider.registerWithEmail(
+                                              _emailController.text.trim(),
+                                              _passwordController.text);
+                                      if (context.mounted) {
+                                        if (res) {
+                                          moveReplace(
+                                              context, ChatbotHomeScreen());
+                                        } else {
+                                          showSnackBar(context,
+                                              'Smoething went wrong!!');
+                                        }
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue[600],
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                        ),
+                                elevation: 0,
+                              ),
+                              child: provider.loading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                Colors.white),
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Create Account',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                            ),
+                          );
+                        },
                       ),
 
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
                       // Divider
                       Row(
@@ -452,32 +429,6 @@ class _SignUpPageState extends State<SignUpPage> {
 
                       SizedBox(height: 24),
 
-                      // Google Sign Up Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: OutlinedButton.icon(
-                          onPressed: _handleGoogleSignUp,
-                          icon: Icon(Icons.google, color: Colors.red),
-                          label: Text(
-                            'Sign up with Google',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            side: BorderSide(color: Colors.grey[300]!),
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: 32),
-
                       // Sign In Link
                       Center(
                         child: Row(
@@ -491,7 +442,9 @@ class _SignUpPageState extends State<SignUpPage> {
                               ),
                             ),
                             TextButton(
-                              onPressed: _handleSignIn,
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
                               child: Text(
                                 'Sign In',
                                 style: TextStyle(

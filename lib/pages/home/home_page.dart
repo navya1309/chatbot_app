@@ -65,7 +65,7 @@ class _ChatbotHomeScreenState extends State<ChatbotHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'AI Assistant',
+                  'PillowTalk',
                   style: TextStyle(
                     color: Colors.black87,
                     fontSize: 16,
@@ -145,6 +145,7 @@ class _ChatbotHomeScreenState extends State<ChatbotHomeScreen> {
                         ),
                         child: TextField(
                           controller: _messageController,
+                          maxLines: null,
                           decoration: InputDecoration(
                             hintText: "Type a message...",
                             border: InputBorder.none,

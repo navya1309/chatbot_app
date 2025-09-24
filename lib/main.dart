@@ -1,7 +1,5 @@
 import 'package:chatbot_app_1/firebase_options.dart';
 import 'package:chatbot_app_1/pages/auth/provider/auth_provider.dart';
-import 'package:chatbot_app_1/pages/auth/signup_page.dart';
-import 'package:chatbot_app_1/pages/home/home_page.dart';
 import 'package:chatbot_app_1/pages/home/provider/chat_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -36,9 +34,9 @@ class MyApp extends StatelessWidget {
           stream: FirebaseAuth.instance.authStateChanges(),
           builder: (context, asyncSnapshot) {
             if (asyncSnapshot.hasData && asyncSnapshot.data != null) {
-              return const ChatbotHomeScreen();
+              return const LoginPage();
             }
-            return const LoginPage();
+            return LoginPage();
           }),
     );
   }

@@ -28,11 +28,30 @@ class _CycleTrackerPageState extends State<CycleTrackerPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: Text('Wellness Calendar'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'Wellness Calendar',
+          style: TextStyle(
+            color: Colors.black87,
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+        ),
         bottom: TabBar(
           controller: _tabController,
-          tabs: [
+          labelColor: const Color(0xFF6366F1),
+          unselectedLabelColor: Colors.grey[500],
+          indicatorColor: const Color(0xFF6366F1),
+          indicatorWeight: 3,
+          labelStyle:
+              const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          unselectedLabelStyle:
+              const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+          tabs: const [
             Tab(text: 'Calendar'),
             Tab(text: 'Log'),
             Tab(text: 'Education'),

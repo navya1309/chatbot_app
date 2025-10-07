@@ -1,7 +1,6 @@
 import 'package:chatbot_app_1/core/utils.dart';
 import 'package:chatbot_app_1/pages/auth/provider/auth_provider.dart';
 import 'package:chatbot_app_1/pages/bottom_navigation/bottom_navigation.dart';
-import 'package:chatbot_app_1/pages/home/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

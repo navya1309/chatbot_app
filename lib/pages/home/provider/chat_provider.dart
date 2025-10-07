@@ -49,6 +49,7 @@ class GeminiApi with ChangeNotifier {
 
   Future<String> chatWithGemini(String prompt) async {
     try {
+      print('DEBUG: ChatProvider - Sending message to Gemini: $prompt');
       _loading = true;
       _chat.add({
         "role": "user",
@@ -66,6 +67,7 @@ class GeminiApi with ChangeNotifier {
       );
       notifyListeners();
 
+      print('DEBUG: ChatProvider - Making API request to Gemini');
       final res = await http.post(
         Uri.parse(
           'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$geminiKey',
@@ -180,6 +182,7 @@ Don’t try to solve it. Just stay kind, grounded, and real.
       );
 
       if (res.statusCode == 200) {
+        print('DEBUG: ChatProvider - Received successful response from Gemini');
         String val = jsonDecode(
           res.body,
         )['candidates'][0]['content']['parts'][0]['text'];
@@ -200,12 +203,18 @@ Don’t try to solve it. Just stay kind, grounded, and real.
           ),
         );
         notifyListeners();
+        print('DEBUG: ChatProvider - Message added to chat history');
         return res.body;
 
         // return content;
       }
+      print(
+          'ERROR: ChatProvider - API returned status code: ${res.statusCode}');
+      print('ERROR: Response body: ${res.body}');
       return 'An internal error occurred';
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('ERROR: ChatProvider - Chat failed: $e');
+      print('STACK TRACE: $stackTrace');
       log(e.toString());
       return e.toString();
     } finally {

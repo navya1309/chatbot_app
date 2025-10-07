@@ -201,19 +201,71 @@ Want to customize your toolkit even more? We can personalize your affirmations, 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      padding: EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       itemCount: topics.length,
       itemBuilder: (context, index) {
         final topic = topics[index];
-        return ExpansionTile(
-          title:
-              Text(topic.title, style: TextStyle(fontWeight: FontWeight.bold)),
-          children: [
-            Padding(
-              padding: EdgeInsets.all(12),
-              child: Text(topic.content),
-            )
-          ],
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              dividerColor: Colors.transparent,
+            ),
+            child: ExpansionTile(
+              tilePadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              leading: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.lightbulb_outline,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              title: Text(
+                topic.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: Colors.black87,
+                ),
+              ),
+              iconColor: const Color(0xFF6366F1),
+              collapsedIconColor: Colors.grey[600],
+              children: [
+                const SizedBox(height: 12),
+                Text(
+                  topic.content,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.6,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );

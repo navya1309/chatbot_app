@@ -41,44 +41,70 @@ class _ChatbotHomeScreenState extends State<ChatbotHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 1,
+        elevation: 0,
         title: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.blue[100],
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.smart_toy,
-                color: Colors.blue[600],
-                size: 20,
+            Hero(
+              tag: 'app_logo',
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF6366F1).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: Colors.white,
+                  size: 22,
+                ),
               ),
             ),
             const SizedBox(width: 12),
             const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'PillowTalk',
                   style: TextStyle(
                     color: Colors.black87,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.5,
                   ),
                 ),
-                Text(
-                  'Online',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 12,
-                    fontWeight: FontWeight.normal,
-                  ),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      size: 8,
+                      color: Color(0xFF10B981),
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'Always here for you',
+                      style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -86,11 +112,23 @@ class _ChatbotHomeScreenState extends State<ChatbotHomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert, color: Colors.grey[600]),
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.more_horiz,
+                color: Colors.grey[700],
+                size: 20,
+              ),
+            ),
             onPressed: () {
               // Add menu functionality
             },
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -112,46 +150,46 @@ class _ChatbotHomeScreenState extends State<ChatbotHomeScreen> {
           // Input area
           Consumer<GeminiApi>(builder: (context, provider, _) {
             return Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, -4),
                   ),
                 ],
               ),
               child: SafeArea(
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // Attachment button
-                    IconButton(
-                      icon: Icon(Icons.attach_file, color: Colors.grey[500]),
-                      onPressed: () {
-                        // Add attachment functionality
-                      },
-                    ),
-
                     // Text input field
                     Expanded(
                       child: Container(
+                        constraints: const BoxConstraints(maxHeight: 120),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
+                            horizontal: 18, vertical: 12),
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
+                          color: const Color(0xFFF3F4F6),
                           borderRadius: BorderRadius.circular(24),
                         ),
                         child: TextField(
                           controller: _messageController,
                           maxLines: null,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            height: 1.4,
+                          ),
                           decoration: InputDecoration(
-                            hintText: "Type a message...",
+                            hintText: "Message PillowTalk...",
                             border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
                             hintStyle: TextStyle(
                               color: Colors.grey[500],
-                              fontSize: 16,
+                              fontSize: 15,
                             ),
                           ),
                           onSubmitted: (_) => _sendMessage(provider),
@@ -160,25 +198,56 @@ class _ChatbotHomeScreenState extends State<ChatbotHomeScreen> {
                       ),
                     ),
 
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
 
                     // Send button
                     GestureDetector(
-                      onTap: () {
-                        _sendMessage(provider);
-                      },
+                      onTap: provider.loading
+                          ? null
+                          : () {
+                              _sendMessage(provider);
+                            },
                       child: Container(
-                        width: 44,
-                        height: 44,
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
-                          color: Colors.blue[600],
+                          gradient: provider.loading
+                              ? null
+                              : const LinearGradient(
+                                  colors: [
+                                    Color(0xFF6366F1),
+                                    Color(0xFF8B5CF6)
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                          color: provider.loading ? Colors.grey[300] : null,
                           shape: BoxShape.circle,
+                          boxShadow: provider.loading
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: const Color(0xFF6366F1)
+                                        .withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                         ),
-                        child: const Icon(
-                          Icons.send,
-                          color: Colors.white,
-                          size: 20,
-                        ),
+                        child: provider.loading
+                            ? Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.grey[600]!),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.arrow_upward_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
                       ),
                     ),
                   ],
@@ -207,7 +276,7 @@ class MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 20),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment:
@@ -215,19 +284,30 @@ class MessageBubble extends StatelessWidget {
         children: [
           if (!message.isUser) ...[
             Container(
-              width: 32,
-              height: 32,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                color: Colors.blue[100],
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6366F1).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Icon(
-                Icons.smart_toy,
-                color: Colors.blue[600],
-                size: 16,
+              child: const Icon(
+                Icons.auto_awesome,
+                color: Colors.white,
+                size: 18,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
           ],
           Flexible(
             child: Column(
@@ -236,15 +316,30 @@ class MessageBubble extends StatelessWidget {
                   : CrossAxisAlignment.start,
               children: [
                 Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.75,
+                  ),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: message.isUser ? Colors.blue[600] : Colors.white,
-                    borderRadius: BorderRadius.circular(18),
+                    gradient: message.isUser
+                        ? const LinearGradient(
+                            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: message.isUser ? null : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(message.isUser ? 20 : 4),
+                      topRight: Radius.circular(message.isUser ? 4 : 20),
+                      bottomLeft: const Radius.circular(20),
+                      bottomRight: const Radius.circular(20),
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 5,
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -254,64 +349,78 @@ class MessageBubble extends StatelessWidget {
                     config: MarkdownConfig(configs: [
                       CodeConfig(
                           style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         color: message.isUser ? Colors.white : Colors.black87,
-                        height: 1.4,
+                        height: 1.5,
                       ))
                     ]),
                   ),
                 ),
 
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
 
                 // Timestamp
-                Text(
-                  _formatTime(message.timestamp),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
+                Padding(
+                  padding: EdgeInsets.only(
+                    left: message.isUser ? 0 : 8,
+                    right: message.isUser ? 8 : 0,
+                  ),
+                  child: Text(
+                    _formatTime(message.timestamp),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[500],
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
 
                 // Action buttons for bot messages
                 if (!message.isUser) ...[
                   const SizedBox(height: 8),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _ActionButton(
-                        icon: Icons.thumb_up_outlined,
-                        onTap: () => _onActionTap('like'),
-                      ),
-                      const SizedBox(width: 12),
-                      _ActionButton(
-                        icon: Icons.thumb_down_outlined,
-                        onTap: () => _onActionTap('dislike'),
-                      ),
-                      const SizedBox(width: 12),
-                      _ActionButton(
-                        icon: Icons.copy_outlined,
-                        onTap: () => _onActionTap('copy'),
-                      ),
-                    ],
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ActionButton(
+                          icon: Icons.thumb_up_outlined,
+                          onTap: () => _onActionTap('like'),
+                        ),
+                        const SizedBox(width: 8),
+                        _ActionButton(
+                          icon: Icons.thumb_down_outlined,
+                          onTap: () => _onActionTap('dislike'),
+                        ),
+                        const SizedBox(width: 8),
+                        _ActionButton(
+                          icon: Icons.content_copy_rounded,
+                          onTap: () => _onActionTap('copy'),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ],
             ),
           ),
           if (message.isUser) ...[
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Container(
-              width: 32,
-              height: 32,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                color: Colors.grey[400],
+                gradient: LinearGradient(
+                  colors: [Colors.grey[400]!, Colors.grey[500]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.person,
                 color: Colors.white,
-                size: 16,
+                size: 18,
               ),
             ),
           ],
@@ -335,7 +444,6 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const _ActionButton({
-    super.key,
     required this.icon,
     required this.onTap,
   });
@@ -345,15 +453,19 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(6),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
+          color: const Color(0xFFF3F4F6),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Colors.grey[300]!,
+            width: 0.5,
+          ),
         ),
         child: Icon(
           icon,
           size: 16,
-          color: Colors.grey[600],
+          color: Colors.grey[700],
         ),
       ),
     );

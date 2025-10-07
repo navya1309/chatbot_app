@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() {
   runApp(MyApp());
@@ -172,143 +173,332 @@ class JournalingService {
   factory JournalingService() => _instance;
   JournalingService._internal();
 
-  // In-memory storage (replace with actual database/API calls)
-  List<JournalEntry> _entries = [];
-  List<MoodData> _moods = [];
-  JournalingSettings _settings = JournalingSettings();
-  String _currentMood = 'Happy';
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Initialize with sample data
-  void initializeSampleData() {
-    if (_entries.isEmpty) {
-      _entries = [
-        JournalEntry(
-          id: '1',
-          title: 'Auto Generated',
-          content:
-              'Today you opened up about your fear of not being good enough academically. You showed vulnerability and honesty. Your stress seems linked to school deadlines.',
-          timestamp: DateTime.now().subtract(Duration(hours: 2)),
-          tags: ['academic', 'stress'],
-          moods: ['😰', '🎓'],
-          type: JournalEntryType.auto_reflection,
-          isPassive: true,
-        ),
-        JournalEntry(
-          id: '2',
-          title: 'Morning Gratitude',
-          content:
-              'I\'m grateful for the peaceful morning I had today. The coffee tasted perfect and I had time to read a few chapters of my book before starting work.',
-          timestamp: DateTime.now().subtract(Duration(days: 1)),
-          tags: ['grateful', 'peaceful'],
-          moods: ['😊', '☕'],
-          type: JournalEntryType.gratitude,
-          isPassive: false,
-        ),
-        JournalEntry(
-          id: '3',
-          title: 'Daily Reflection',
-          content:
-              'Feeling grateful for the small victories today. Had a good conversation with mom and finished my assignment early.',
-          timestamp: DateTime.now().subtract(Duration(days: 1)),
-          tags: ['family', 'achievement'],
-          moods: ['😊', '❤️'],
-          type: JournalEntryType.daily_prompt,
-          isPassive: false,
-        ),
-      ];
-
-      _moods = [
-        MoodData(
-            mood: 'Happy',
-            emoji: '😊',
-            timestamp: DateTime.now(),
-            intensity: 7.5),
-        MoodData(
-            mood: 'Anxious',
-            emoji: '😰',
-            timestamp: DateTime.now().subtract(Duration(hours: 3)),
-            intensity: 6.0),
-        MoodData(
-            mood: 'Grateful',
-            emoji: '🙏',
-            timestamp: DateTime.now().subtract(Duration(days: 1)),
-            intensity: 8.0),
-      ];
-    }
-  }
+  String get _userId => _auth.currentUser?.uid ?? '';
 
   // CRUD Operations for Journal Entries
   Future<List<JournalEntry>> getAllEntries() async {
-    await Future.delayed(Duration(milliseconds: 300)); // Simulate API delay
-    return List.from(_entries);
+    try {
+      if (_userId.isEmpty) {
+        print('DEBUG: getAllEntries - User ID is empty');
+        return [];
+      }
+
+      print('DEBUG: Fetching all journal entries for user: $_userId');
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('journal_entries')
+          .orderBy('timestamp', descending: true)
+          .get();
+
+      print('DEBUG: Retrieved ${snapshot.docs.length} journal entries');
+      return snapshot.docs
+          .map((doc) => JournalEntry.fromJson({...doc.data(), 'id': doc.id}))
+          .toList();
+    } catch (e, stackTrace) {
+      print('ERROR: getAllEntries failed - $e');
+      print('STACK TRACE: $stackTrace');
+      return [];
+    }
   }
 
   Future<List<JournalEntry>> getEntriesByType(JournalEntryType type) async {
-    await Future.delayed(Duration(milliseconds: 200));
-    return _entries.where((entry) => entry.type == type).toList();
+    try {
+      if (_userId.isEmpty) {
+        print('DEBUG: getEntriesByType - User ID is empty');
+        return [];
+      }
+
+      print(
+          'DEBUG: Fetching entries of type: ${type.toString().split('.').last}');
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('journal_entries')
+          .where('type', isEqualTo: type.toString().split('.').last)
+          .orderBy('timestamp', descending: true)
+          .get();
+
+      print(
+          'DEBUG: Retrieved ${snapshot.docs.length} entries of type ${type.toString().split('.').last}');
+      return snapshot.docs
+          .map((doc) => JournalEntry.fromJson({...doc.data(), 'id': doc.id}))
+          .toList();
+    } catch (e, stackTrace) {
+      print('ERROR: getEntriesByType failed - $e');
+      print('STACK TRACE: $stackTrace');
+      return [];
+    }
   }
 
   Future<List<JournalEntry>> getPassiveEntries() async {
-    await Future.delayed(Duration(milliseconds: 200));
-    return _entries.where((entry) => entry.isPassive).toList();
+    try {
+      if (_userId.isEmpty) {
+        print('DEBUG: getPassiveEntries - User ID is empty');
+        return [];
+      }
+
+      print('DEBUG: Fetching passive journal entries');
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('journal_entries')
+          .where('isPassive', isEqualTo: true)
+          // .orderBy('timestamp', descending: true)
+          .get();
+
+      print('DEBUG: Retrieved ${snapshot.docs.length} passive entries');
+      return snapshot.docs
+          .map((doc) => JournalEntry.fromJson({...doc.data(), 'id': doc.id}))
+          .toList();
+    } catch (e, stackTrace) {
+      print('ERROR: getPassiveEntries failed - $e');
+      print('STACK TRACE: $stackTrace');
+      return [];
+    }
   }
 
   Future<List<JournalEntry>> getActiveEntries() async {
-    await Future.delayed(Duration(milliseconds: 200));
-    return _entries.where((entry) => !entry.isPassive).toList();
+    try {
+      if (_userId.isEmpty) {
+        print('DEBUG: getActiveEntries - User ID is empty');
+        return [];
+      }
+
+      print('DEBUG: Fetching active journal entries');
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('journal_entries')
+          .where('isPassive', isEqualTo: false)
+          .orderBy('timestamp', descending: true)
+          .get();
+
+      print('DEBUG: Retrieved ${snapshot.docs.length} active entries');
+      return snapshot.docs
+          .map((doc) => JournalEntry.fromJson({...doc.data(), 'id': doc.id}))
+          .toList();
+    } catch (e, stackTrace) {
+      print('ERROR: getActiveEntries failed - $e');
+      print('STACK TRACE: $stackTrace');
+      return [];
+    }
   }
 
   Future<JournalEntry> createEntry(JournalEntry entry) async {
-    await Future.delayed(Duration(milliseconds: 500)); // Simulate API call
-    _entries.insert(0, entry);
-    return entry;
+    try {
+      if (_userId.isEmpty) {
+        print('ERROR: createEntry - User not logged in');
+        throw Exception('User not logged in');
+      }
+
+      print('DEBUG: Creating journal entry: ${entry.title}');
+      final docRef = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('journal_entries')
+          .add(entry.toJson());
+
+      print('DEBUG: Journal entry created successfully with ID: ${docRef.id}');
+      return JournalEntry(
+        id: docRef.id,
+        title: entry.title,
+        content: entry.content,
+        timestamp: entry.timestamp,
+        tags: entry.tags,
+        moods: entry.moods,
+        type: entry.type,
+        isPassive: entry.isPassive,
+      );
+    } catch (e, stackTrace) {
+      print('ERROR: createEntry failed - $e');
+      print('STACK TRACE: $stackTrace');
+      rethrow;
+    }
   }
 
   Future<JournalEntry> updateEntry(JournalEntry entry) async {
-    await Future.delayed(Duration(milliseconds: 400));
-    int index = _entries.indexWhere((e) => e.id == entry.id);
-    if (index != -1) {
-      _entries[index] = entry;
+    try {
+      if (_userId.isEmpty) {
+        print('ERROR: updateEntry - User not logged in');
+        throw Exception('User not logged in');
+      }
+
+      print('DEBUG: Updating journal entry: ${entry.id}');
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('journal_entries')
+          .doc(entry.id)
+          .update(entry.toJson());
+
+      print('DEBUG: Journal entry updated successfully');
+      return entry;
+    } catch (e, stackTrace) {
+      print('ERROR: updateEntry failed - $e');
+      print('STACK TRACE: $stackTrace');
+      rethrow;
     }
-    return entry;
   }
 
   Future<void> deleteEntry(String id) async {
-    await Future.delayed(Duration(milliseconds: 300));
-    _entries.removeWhere((entry) => entry.id == id);
+    try {
+      if (_userId.isEmpty) {
+        print('ERROR: deleteEntry - User not logged in');
+        throw Exception('User not logged in');
+      }
+
+      print('DEBUG: Deleting journal entry: $id');
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('journal_entries')
+          .doc(id)
+          .delete();
+
+      print('DEBUG: Journal entry deleted successfully');
+    } catch (e, stackTrace) {
+      print('ERROR: deleteEntry failed - $e');
+      print('STACK TRACE: $stackTrace');
+      rethrow;
+    }
   }
 
   // Mood Management
   Future<void> updateCurrentMood(String mood, double intensity) async {
-    await Future.delayed(Duration(milliseconds: 200));
-    _currentMood = mood;
-    _moods.insert(
-        0,
-        MoodData(
-          mood: mood,
-          emoji: _getMoodEmoji(mood),
-          timestamp: DateTime.now(),
-          intensity: intensity,
-        ));
+    try {
+      if (_userId.isEmpty) {
+        print('ERROR: updateCurrentMood - User not logged in');
+        throw Exception('User not logged in');
+      }
+
+      print('DEBUG: Updating mood to: $mood with intensity: $intensity');
+      final moodData = MoodData(
+        mood: mood,
+        emoji: _getMoodEmoji(mood),
+        timestamp: DateTime.now(),
+        intensity: intensity,
+      );
+
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('moods')
+          .add(moodData.toJson());
+
+      // Also update current mood in user document
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .set({'currentMood': mood}, SetOptions(merge: true));
+
+      print('DEBUG: Mood updated successfully');
+    } catch (e, stackTrace) {
+      print('ERROR: updateCurrentMood failed - $e');
+      print('STACK TRACE: $stackTrace');
+      rethrow;
+    }
   }
 
   Future<List<MoodData>> getMoodHistory(int days) async {
-    await Future.delayed(Duration(milliseconds: 200));
-    DateTime cutoff = DateTime.now().subtract(Duration(days: days));
-    return _moods.where((mood) => mood.timestamp.isAfter(cutoff)).toList();
+    try {
+      if (_userId.isEmpty) {
+        print('DEBUG: getMoodHistory - User ID is empty');
+        return [];
+      }
+
+      print('DEBUG: Fetching mood history for last $days days');
+      DateTime cutoff = DateTime.now().subtract(Duration(days: days));
+
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('moods')
+          .where('timestamp', isGreaterThan: cutoff.toIso8601String())
+          // .orderBy('timestamp', descending: true)
+          .get();
+
+      print('DEBUG: Retrieved ${snapshot.docs.length} mood entries');
+      return snapshot.docs.map((doc) => MoodData.fromJson(doc.data())).toList();
+    } catch (e, stackTrace) {
+      print('ERROR: getMoodHistory failed - $e');
+      print('STACK TRACE: $stackTrace');
+      return [];
+    }
   }
 
-  String getCurrentMood() => _currentMood;
+  Future<String> getCurrentMood() async {
+    try {
+      if (_userId.isEmpty) {
+        print('DEBUG: getCurrentMood - User ID is empty');
+        return 'Happy';
+      }
+
+      print('DEBUG: Fetching current mood for user: $_userId');
+      final doc = await _firestore.collection('users').doc(_userId).get();
+      final mood = doc.data()?['currentMood'] ?? 'Happy';
+      print('DEBUG: Current mood: $mood');
+      return mood;
+    } catch (e, stackTrace) {
+      print('ERROR: getCurrentMood failed - $e');
+      print('STACK TRACE: $stackTrace');
+      return 'Happy';
+    }
+  }
 
   // Settings Management
   Future<JournalingSettings> getSettings() async {
-    await Future.delayed(Duration(milliseconds: 100));
-    return _settings;
+    try {
+      if (_userId.isEmpty) {
+        print('DEBUG: getSettings - User ID is empty');
+        return JournalingSettings();
+      }
+
+      print('DEBUG: Fetching journaling settings');
+      final doc = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('settings')
+          .doc('journaling')
+          .get();
+
+      if (doc.exists) {
+        print('DEBUG: Settings loaded successfully');
+        return JournalingSettings.fromJson(doc.data()!);
+      }
+      print('DEBUG: No settings found, using defaults');
+      return JournalingSettings();
+    } catch (e, stackTrace) {
+      print('ERROR: getSettings failed - $e');
+      print('STACK TRACE: $stackTrace');
+      return JournalingSettings();
+    }
   }
 
   Future<void> updateSettings(JournalingSettings settings) async {
-    await Future.delayed(Duration(milliseconds: 200));
-    _settings = settings;
+    try {
+      if (_userId.isEmpty) {
+        print('ERROR: updateSettings - User not logged in');
+        throw Exception('User not logged in');
+      }
+
+      print('DEBUG: Updating journaling settings');
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('settings')
+          .doc('journaling')
+          .set(settings.toJson());
+
+      print('DEBUG: Settings updated successfully');
+    } catch (e, stackTrace) {
+      print('ERROR: updateSettings failed - $e');
+      print('STACK TRACE: $stackTrace');
+      rethrow;
+    }
   }
 
   // AI-Generated Content (Mock)
@@ -349,35 +539,138 @@ class JournalingService {
   }
 
   Future<WeeklyInsight> generateWeeklyInsight() async {
-    await Future.delayed(Duration(seconds: 1));
+    try {
+      if (_userId.isEmpty) {
+        print('DEBUG: generateWeeklyInsight - User ID is empty');
+        return WeeklyInsight(
+          weekStart: DateTime.now(),
+          weekEnd: DateTime.now(),
+          moodPercentages: {},
+          topTopics: [],
+          suggestions: [],
+          affirmation: 'Keep going!',
+          totalEntries: 0,
+        );
+      }
 
-    DateTime now = DateTime.now();
-    DateTime weekStart = now.subtract(Duration(days: now.weekday - 1));
+      print('DEBUG: Generating weekly insight');
+      DateTime now = DateTime.now();
+      DateTime weekStart = now.subtract(Duration(days: now.weekday - 1));
+      DateTime weekEnd = weekStart.add(Duration(days: 6));
 
-    return WeeklyInsight(
-      weekStart: weekStart,
-      weekEnd: weekStart.add(Duration(days: 6)),
-      moodPercentages: {
-        'Happy': 45.0,
-        'Anxious': 25.0,
-        'Grateful': 20.0,
-        'Overwhelmed': 10.0,
-      },
-      topTopics: [
-        'Academic stress',
-        'Family relationships',
-        'Future career',
-        'Social interactions'
-      ],
-      suggestions: [
-        'Consider meditation before stressful events',
-        'Try time-blocking your study sessions',
-        'Schedule regular family check-ins',
-      ],
-      affirmation:
-          'You are capable of handling whatever challenges come your way. Your academic struggles don\'t define your worth.',
-      totalEntries: _entries.length,
-    );
+      // Get this week's moods
+      final moodsSnapshot = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('moods')
+          .where('timestamp', isGreaterThan: weekStart.toIso8601String())
+          .where('timestamp', isLessThan: weekEnd.toIso8601String())
+          .get();
+
+      // Calculate mood percentages
+      Map<String, int> moodCounts = {};
+      for (var doc in moodsSnapshot.docs) {
+        String mood = doc.data()['mood'];
+        moodCounts[mood] = (moodCounts[mood] ?? 0) + 1;
+      }
+
+      int totalMoods = moodsSnapshot.docs.length;
+      Map<String, double> moodPercentages = {};
+      if (totalMoods > 0) {
+        moodCounts.forEach((mood, count) {
+          moodPercentages[mood] = (count / totalMoods) * 100;
+        });
+      }
+
+      // Get this week's entries
+      final entriesSnapshot = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('journal_entries')
+          .where('timestamp', isGreaterThan: weekStart.toIso8601String())
+          .where('timestamp', isLessThan: weekEnd.toIso8601String())
+          .get();
+
+      // Extract top topics from tags
+      Map<String, int> tagCounts = {};
+      for (var doc in entriesSnapshot.docs) {
+        List<String> tags = List<String>.from(doc.data()['tags'] ?? []);
+        for (var tag in tags) {
+          tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
+        }
+      }
+
+      var sortedEntries = tagCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      List<String> topics = sortedEntries.take(4).map((e) => e.key).toList();
+
+      // Generate suggestions based on moods
+      List<String> suggestions = _generateSuggestions(moodPercentages);
+
+      // Generate affirmation
+      String affirmation = _generateAffirmation();
+
+      print('DEBUG: Weekly insight generated successfully');
+      return WeeklyInsight(
+        weekStart: weekStart,
+        weekEnd: weekEnd,
+        moodPercentages: moodPercentages,
+        topTopics: topics.isEmpty ? ['No topics yet'] : topics,
+        suggestions: suggestions,
+        affirmation: affirmation,
+        totalEntries: entriesSnapshot.docs.length,
+      );
+    } catch (e, stackTrace) {
+      print('ERROR: generateWeeklyInsight failed - $e');
+      print('STACK TRACE: $stackTrace');
+      return WeeklyInsight(
+        weekStart: DateTime.now(),
+        weekEnd: DateTime.now(),
+        moodPercentages: {},
+        topTopics: ['Error loading topics'],
+        suggestions: ['Keep journaling regularly'],
+        affirmation: 'You are doing great!',
+        totalEntries: 0,
+      );
+    }
+  }
+
+  List<String> _generateSuggestions(Map<String, double> moodPercentages) {
+    List<String> suggestions = [];
+
+    if ((moodPercentages['Anxious'] ?? 0) > 30) {
+      suggestions.add('Consider meditation before stressful events');
+      suggestions.add('Try deep breathing exercises');
+    }
+    if ((moodPercentages['Overwhelmed'] ?? 0) > 20) {
+      suggestions.add('Break tasks into smaller, manageable steps');
+      suggestions.add('Take regular breaks throughout the day');
+    }
+    if ((moodPercentages['Sad'] ?? 0) > 25) {
+      suggestions.add('Reach out to friends or family');
+      suggestions.add('Try activities that bring you joy');
+    }
+
+    if (suggestions.isEmpty) {
+      suggestions = [
+        'Keep journaling regularly to track your progress',
+        'Maintain a healthy sleep schedule',
+        'Stay connected with loved ones',
+      ];
+    }
+
+    return suggestions.take(3).toList();
+  }
+
+  String _generateAffirmation() {
+    List<String> affirmations = [
+      'You are capable of handling whatever challenges come your way.',
+      'Your feelings are valid and it\'s okay to not be okay sometimes.',
+      'You are stronger than you think, braver than you believe.',
+      'Every day is a new opportunity for growth and healing.',
+      'You deserve kindness, especially from yourself.',
+    ];
+    return affirmations[Random().nextInt(affirmations.length)];
   }
 
   Future<String> getDailyPrompt() async {
@@ -431,13 +724,13 @@ class _JournalingPageState extends State<JournalingPage>
   JournalingSettings _settings = JournalingSettings();
   WeeklyInsight? _weeklyInsight;
   String _dailyPrompt = '';
+  String _currentMood = 'Happy';
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    _service.initializeSampleData();
     _loadData();
   }
 
@@ -445,12 +738,14 @@ class _JournalingPageState extends State<JournalingPage>
     setState(() => _isLoading = true);
 
     try {
+      print('DEBUG: JournalingPage - Loading all journal data');
       final entries = await _service.getAllEntries();
       final passiveEntries = await _service.getPassiveEntries();
       final activeEntries = await _service.getActiveEntries();
       final settings = await _service.getSettings();
       final weeklyInsight = await _service.generateWeeklyInsight();
       final dailyPrompt = await _service.getDailyPrompt();
+      final currentMood = await _service.getCurrentMood();
 
       setState(() {
         _allEntries = entries;
@@ -459,9 +754,13 @@ class _JournalingPageState extends State<JournalingPage>
         _settings = settings;
         _weeklyInsight = weeklyInsight;
         _dailyPrompt = dailyPrompt;
+        _currentMood = currentMood;
         _isLoading = false;
       });
-    } catch (e) {
+      print('DEBUG: JournalingPage - All data loaded successfully');
+    } catch (e, stackTrace) {
+      print('ERROR: JournalingPage - Failed to load data: $e');
+      print('STACK TRACE: $stackTrace');
       setState(() => _isLoading = false);
       _showErrorSnackBar('Failed to load data: ${e.toString()}');
     }
@@ -469,9 +768,16 @@ class _JournalingPageState extends State<JournalingPage>
 
   Future<void> _updateMood(String mood) async {
     try {
+      print('DEBUG: JournalingPage - Updating mood to: $mood');
       await _service.updateCurrentMood(mood, 7.0); // Default intensity
+      setState(() {
+        _currentMood = mood;
+      });
       _showSuccessSnackBar('Mood updated to $mood');
-    } catch (e) {
+      print('DEBUG: JournalingPage - Mood UI updated');
+    } catch (e, stackTrace) {
+      print('ERROR: JournalingPage - Failed to update mood: $e');
+      print('STACK TRACE: $stackTrace');
       _showErrorSnackBar('Failed to update mood: ${e.toString()}');
     }
   }
@@ -490,10 +796,14 @@ class _JournalingPageState extends State<JournalingPage>
     );
 
     try {
+      print('DEBUG: JournalingPage - Toggling setting: $setting to $value');
       await _service.updateSettings(newSettings);
       setState(() => _settings = newSettings);
       _showSuccessSnackBar('Settings updated');
-    } catch (e) {
+      print('DEBUG: JournalingPage - Setting updated successfully');
+    } catch (e, stackTrace) {
+      print('ERROR: JournalingPage - Failed to update setting: $e');
+      print('STACK TRACE: $stackTrace');
       _showErrorSnackBar('Failed to update settings: ${e.toString()}');
     }
   }
@@ -511,20 +821,28 @@ class _JournalingPageState extends State<JournalingPage>
 
   Future<void> _saveEntry(JournalEntry entry) async {
     try {
+      print('DEBUG: JournalingPage - Saving journal entry: ${entry.title}');
       await _service.createEntry(entry);
+      print('DEBUG: JournalingPage - Reloading data after save');
       await _loadData(); // Refresh data
       _showSuccessSnackBar('Entry saved successfully');
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('ERROR: JournalingPage - Failed to save entry: $e');
+      print('STACK TRACE: $stackTrace');
       _showErrorSnackBar('Failed to save entry: ${e.toString()}');
     }
   }
 
   Future<void> _deleteEntry(String id) async {
     try {
+      print('DEBUG: JournalingPage - Deleting entry: $id');
       await _service.deleteEntry(id);
+      print('DEBUG: JournalingPage - Reloading data after delete');
       await _loadData(); // Refresh data
       _showSuccessSnackBar('Entry deleted');
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('ERROR: JournalingPage - Failed to delete entry: $e');
+      print('STACK TRACE: $stackTrace');
       _showErrorSnackBar('Failed to delete entry: ${e.toString()}');
     }
   }
@@ -569,34 +887,56 @@ class _JournalingPageState extends State<JournalingPage>
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: Text(
+        title: const Text(
           'Journal',
           style: TextStyle(
             color: Colors.black87,
             fontSize: 24,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
           ),
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh, color: Colors.grey[600]),
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.refresh, color: Colors.grey[700], size: 20),
+            ),
             onPressed: _loadData,
           ),
           IconButton(
-            icon: Icon(Icons.settings_outlined, color: Colors.grey[600]),
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.settings_outlined,
+                  color: Colors.grey[700], size: 20),
+            ),
             onPressed: () => _showSettingsDialog(),
           ),
+          const SizedBox(width: 8),
         ],
         bottom: TabBar(
           controller: _tabController,
-          labelColor: Colors.blue[600],
+          labelColor: const Color(0xFF6366F1),
           unselectedLabelColor: Colors.grey[500],
-          indicatorColor: Colors.blue[600],
-          tabs: [
+          indicatorColor: const Color(0xFF6366F1),
+          indicatorWeight: 3,
+          labelStyle:
+              const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          unselectedLabelStyle:
+              const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+          tabs: const [
             Tab(text: 'Timeline'),
             Tab(text: 'Auto Reflections'),
             Tab(text: 'Active Journal'),
@@ -613,11 +953,29 @@ class _JournalingPageState extends State<JournalingPage>
           _buildInsightsTab(),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateEntryDialog(
-            JournalEntryType.free_write, 'New Entry', ''),
-        backgroundColor: Colors.blue[600],
-        child: Icon(Icons.add, color: Colors.white),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6366F1).withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: () => _showCreateEntryDialog(
+              JournalEntryType.free_write, 'New Entry', ''),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: const Icon(Icons.add, color: Colors.white, size: 28),
+        ),
       ),
     );
   }
@@ -633,40 +991,46 @@ class _JournalingPageState extends State<JournalingPage>
             // Mood Overview Card
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.blue[400]!, Colors.blue[600]!],
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6366F1).withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Your Mood Today',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
                     ),
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
-                      _buildMoodIcon(
-                          '😊', 'Happy', _service.getCurrentMood() == 'Happy'),
-                      SizedBox(width: 16),
-                      _buildMoodIcon('😰', 'Anxious',
-                          _service.getCurrentMood() == 'Anxious'),
+                      _buildMoodIcon('😊', 'Happy', _currentMood == 'Happy'),
                       SizedBox(width: 16),
                       _buildMoodIcon(
-                          '😴', 'Tired', _service.getCurrentMood() == 'Tired'),
+                          '😰', 'Anxious', _currentMood == 'Anxious'),
                       SizedBox(width: 16),
-                      _buildMoodIcon('🤔', 'Thoughtful',
-                          _service.getCurrentMood() == 'Thoughtful'),
+                      _buildMoodIcon('😴', 'Tired', _currentMood == 'Tired'),
+                      SizedBox(width: 16),
+                      _buildMoodIcon(
+                          '🤔', 'Thoughtful', _currentMood == 'Thoughtful'),
                     ],
                   ),
                 ],

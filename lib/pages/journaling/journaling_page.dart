@@ -691,21 +691,29 @@ class JournalingService {
 // Main Journaling Page
 class JournalingPage extends StatefulWidget {
   @override
-  _JournalingPageState createState() => _JournalingPageState();
+  State<JournalingPage> createState() => _JournalingPageState();
 }
 
 class _JournalingPageState extends State<JournalingPage>
     with TickerProviderStateMixin {
   late TabController _tabController;
+
   final JournalingService _service = JournalingService();
 
   List<JournalEntry> _allEntries = [];
+
   List<JournalEntry> _passiveEntries = [];
+
   List<JournalEntry> _activeEntries = [];
+
   JournalingSettings _settings = JournalingSettings();
+
   WeeklyInsight? _weeklyInsight;
+
   String _dailyPrompt = '';
+
   String _currentMood = 'Happy';
+
   bool _isLoading = true;
 
   @override
@@ -865,7 +873,7 @@ class _JournalingPageState extends State<JournalingPage>
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
+      return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
         ),
@@ -1144,7 +1152,7 @@ class _JournalingPageState extends State<JournalingPage>
     return RefreshIndicator(
       onRefresh: _loadData,
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1162,7 +1170,7 @@ class _JournalingPageState extends State<JournalingPage>
                     JournalEntryType.daily_prompt,
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _buildQuickActionCard(
                     'Free Write',
@@ -1175,7 +1183,7 @@ class _JournalingPageState extends State<JournalingPage>
               ],
             ),
 
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             Row(
               children: [
@@ -1188,7 +1196,7 @@ class _JournalingPageState extends State<JournalingPage>
                     JournalEntryType.voice_note,
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _buildQuickActionCard(
                     'Doodle',
@@ -1201,7 +1209,7 @@ class _JournalingPageState extends State<JournalingPage>
               ],
             ),
 
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
 
             // Recent Active Entries
             Text(
@@ -1213,7 +1221,7 @@ class _JournalingPageState extends State<JournalingPage>
               ),
             ),
 
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             ..._activeEntries
                 .map((entry) => _buildActiveEntryCard(entry))
@@ -1238,23 +1246,23 @@ class _JournalingPageState extends State<JournalingPage>
 
   Widget _buildInsightsTab() {
     if (_weeklyInsight == null) {
-      return Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator());
     }
 
     return RefreshIndicator(
       onRefresh: _loadData,
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Weekly Digest Card
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.purple[400]!, Colors.purple[600]!],
+                  colors: [const Color(0xFF8B5CF6), const Color(0xFF6366F1)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -1271,7 +1279,7 @@ class _JournalingPageState extends State<JournalingPage>
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     '${_formatDate(_weeklyInsight!.weekStart)} - ${_formatDate(_weeklyInsight!.weekEnd)}',
                     style: TextStyle(
@@ -1279,7 +1287,7 @@ class _JournalingPageState extends State<JournalingPage>
                       fontSize: 14,
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -1297,14 +1305,14 @@ class _JournalingPageState extends State<JournalingPage>
               ),
             ),
 
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
 
             // Mood Patterns
             _buildInsightCard(
               'Mood Patterns',
               'You tend to feel more anxious on weekdays, especially Mondays and Wednesdays. Your mood improves significantly on weekends.',
               Icons.trending_up,
-              Colors.blue[600]!,
+              const Color(0xFF6366F1),
             ),
 
             // Top Topics
@@ -1316,7 +1324,7 @@ class _JournalingPageState extends State<JournalingPage>
                   .map((entry) => '${entry.key + 1}. ${entry.value}')
                   .join('\n'),
               Icons.topic_outlined,
-              Colors.green[600]!,
+              const Color(0xFF6366F1),
             ),
 
             // Suggestions
@@ -1324,15 +1332,15 @@ class _JournalingPageState extends State<JournalingPage>
               'Personalized Suggestions',
               _weeklyInsight!.suggestions.join('\n• '),
               Icons.lightbulb_outlined,
-              Colors.orange[600]!,
+              const Color(0xFF6366F1),
             ),
 
             // Affirmations
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.pink[50],
+                color: const Color(0xFFF8F9FA),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.pink[200]!),
               ),

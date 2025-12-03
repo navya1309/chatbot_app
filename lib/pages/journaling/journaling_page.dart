@@ -3,25 +3,6 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Journaling',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        fontFamily: 'Inter',
-      ),
-      home: JournalingPage(),
-      debugShowCheckedModeBanner: false,
-    );
-  }
-}
-
 // Data Models
 class JournalEntry {
   final String id;
@@ -735,7 +716,9 @@ class _JournalingPageState extends State<JournalingPage>
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
 
     try {
       print('DEBUG: JournalingPage - Loading all journal data');
@@ -761,7 +744,10 @@ class _JournalingPageState extends State<JournalingPage>
     } catch (e, stackTrace) {
       print('ERROR: JournalingPage - Failed to load data: $e');
       print('STACK TRACE: $stackTrace');
-      setState(() => _isLoading = false);
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
       _showErrorSnackBar('Failed to load data: ${e.toString()}');
     }
   }

@@ -110,26 +110,6 @@ class _ChatbotHomeScreenState extends State<ChatbotHomeScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.more_horiz,
-                color: Colors.grey[700],
-                size: 20,
-              ),
-            ),
-            onPressed: () {
-              // Add menu functionality
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: Column(
         children: [
@@ -183,7 +163,14 @@ class _ChatbotHomeScreenState extends State<ChatbotHomeScreen> {
                             height: 1.4,
                           ),
                           decoration: InputDecoration(
+                            fillColor: Colors.transparent,
+                            filled: true,
                             hintText: "Message PillowTalk...",
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
+                            focusedErrorBorder: InputBorder.none,
                             border: InputBorder.none,
                             isDense: true,
                             contentPadding: EdgeInsets.zero,
@@ -320,7 +307,7 @@ class MessageBubble extends StatelessWidget {
                     maxWidth: MediaQuery.of(context).size.width * 0.75,
                   ),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   decoration: BoxDecoration(
                     gradient: message.isUser
                         ? const LinearGradient(
@@ -346,18 +333,54 @@ class MessageBubble extends StatelessWidget {
                   ),
                   child: MarkdownBlock(
                     data: message.text,
-                    config: MarkdownConfig(configs: [
-                      CodeConfig(
-                          style: TextStyle(
-                        fontSize: 15,
-                        color: message.isUser ? Colors.white : Colors.black87,
-                        height: 1.5,
-                      ))
-                    ]),
+                    config: MarkdownConfig(
+                      configs: [
+                        PConfig(
+                            textStyle: TextStyle(
+                                color: message.isUser
+                                    ? Colors.white
+                                    : Colors.black)),
+                        H1Config(
+                            style: TextStyle(
+                                color: message.isUser
+                                    ? Colors.white
+                                    : Colors.black)),
+                        H2Config(
+                            style: TextStyle(
+                                color: message.isUser
+                                    ? Colors.white
+                                    : Colors.black)),
+                        H3Config(
+                            style: TextStyle(
+                                color: message.isUser
+                                    ? Colors.white
+                                    : Colors.black)),
+                        H4Config(
+                            style: TextStyle(
+                                color: message.isUser
+                                    ? Colors.white
+                                    : Colors.black)),
+                        H5Config(
+                            style: TextStyle(
+                                color: message.isUser
+                                    ? Colors.white
+                                    : Colors.black)),
+                        H6Config(
+                            style: TextStyle(
+                                color: message.isUser
+                                    ? Colors.white
+                                    : Colors.black)),
+                        PreConfig(
+                            textStyle: TextStyle(
+                                color: message.isUser
+                                    ? Colors.white
+                                    : Colors.black)),
+                      ],
+                    ),
                   ),
                 ),
 
-                const SizedBox(height: 6),
+                const SizedBox(height: 2),
 
                 // Timestamp
                 Padding(
@@ -376,31 +399,31 @@ class MessageBubble extends StatelessWidget {
                 ),
 
                 // Action buttons for bot messages
-                if (!message.isUser) ...[
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _ActionButton(
-                          icon: Icons.thumb_up_outlined,
-                          onTap: () => _onActionTap('like'),
-                        ),
-                        const SizedBox(width: 8),
-                        _ActionButton(
-                          icon: Icons.thumb_down_outlined,
-                          onTap: () => _onActionTap('dislike'),
-                        ),
-                        const SizedBox(width: 8),
-                        _ActionButton(
-                          icon: Icons.content_copy_rounded,
-                          onTap: () => _onActionTap('copy'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                // if (!message.isUser) ...[
+                //   const SizedBox(height: 8),
+                //   Padding(
+                //     padding: const EdgeInsets.only(left: 8),
+                //     child: Row(
+                //       mainAxisSize: MainAxisSize.min,
+                //       children: [
+                //         _ActionButton(
+                //           icon: Icons.thumb_up_outlined,
+                //           onTap: () => _onActionTap('like'),
+                //         ),
+                //         const SizedBox(width: 8),
+                //         _ActionButton(
+                //           icon: Icons.thumb_down_outlined,
+                //           onTap: () => _onActionTap('dislike'),
+                //         ),
+                //         const SizedBox(width: 8),
+                //         _ActionButton(
+                //           icon: Icons.content_copy_rounded,
+                //           onTap: () => _onActionTap('copy'),
+                //         ),
+                //       ],
+                //     ),
+                //   ),
+                // ],
               ],
             ),
           ),

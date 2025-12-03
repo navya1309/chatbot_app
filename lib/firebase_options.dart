@@ -23,10 +23,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -61,9 +58,19 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBfsvOecd7ZBgJdyhM0UU4unhw5ksvBdk8',
-    appId: '1:138876399906:android:8f1b47c859c7210d3a357b',
+    appId: '1:138876399906:android:df8b1a21d0101e593a357b',
     messagingSenderId: '138876399906',
     projectId: 'chatbot-app-708d8',
     storageBucket: 'chatbot-app-708d8.firebasestorage.app',
   );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyA0WornPKfuBuOdf1-CrYCpv-Xze61jfvY',
+    appId: '1:138876399906:ios:30c55eb29d4e1cc63a357b',
+    messagingSenderId: '138876399906',
+    projectId: 'chatbot-app-708d8',
+    storageBucket: 'chatbot-app-708d8.firebasestorage.app',
+    iosBundleId: 'com.pillowtalk.app',
+  );
+
 }

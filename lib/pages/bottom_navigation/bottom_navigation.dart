@@ -16,8 +16,8 @@ class _BottomNavigationState extends State<BottomNavigation> {
   final PageController _pageController = PageController();
 
   final List<Widget> _pages = [
-    ChatbotHomeScreen(),
     JournalingPage(),
+    const ChatbotHomeScreen(),
     CycleTrackerPage(),
     MythFunCardsPage(),
   ];
@@ -26,11 +26,11 @@ class _BottomNavigationState extends State<BottomNavigation> {
     setState(() {
       _selectedIndex = index;
     });
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
+    // _pageController.animateToPage(
+    //   index,
+    //   duration: const Duration(milliseconds: 300),
+    //   curve: Curves.easeInOut,
+    // );
   }
 
   @override
@@ -42,15 +42,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        children: _pages,
-      ),
+      body: _pages[_selectedIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -69,15 +61,15 @@ class _BottomNavigationState extends State<BottomNavigation> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildNavItem(
-                  icon: Icons.chat_bubble_outline,
-                  activeIcon: Icons.chat_bubble,
-                  label: 'Chat',
-                  index: 0,
-                ),
-                _buildNavItem(
                   icon: Icons.book_outlined,
                   activeIcon: Icons.book,
                   label: 'Journal',
+                  index: 0,
+                ),
+                _buildNavItem(
+                  icon: Icons.chat_bubble_outline,
+                  activeIcon: Icons.chat_bubble,
+                  label: 'Chat',
                   index: 1,
                 ),
                 _buildNavItem(

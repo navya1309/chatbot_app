@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class SignUpPage extends StatefulWidget {
+  const SignUpPage({super.key});
+
   @override
-  _SignUpPageState createState() => _SignUpPageState();
+  State<SignUpPage> createState() => _SignUpPageState();
 }
 
 class _SignUpPageState extends State<SignUpPage> {
@@ -26,11 +28,11 @@ class _SignUpPageState extends State<SignUpPage> {
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(height: 40),
+                const SizedBox(height: 40),
 
                 // Back Button
                 Row(
@@ -42,7 +44,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   ],
                 ),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // Logo/Icon Section
                 Center(
@@ -83,7 +85,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                 ),
 
-                SizedBox(height: 40),
+                const SizedBox(height: 40),
 
                 // Sign Up Form
                 Form(
@@ -92,7 +94,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Full Name Field
-                      Text(
+                      const Text(
                         'Full Name',
                         style: TextStyle(
                           fontSize: 16,
@@ -100,7 +102,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           color: Colors.black87,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       TextFormField(
                         controller: _nameController,
                         textCapitalization: TextCapitalization.words,
@@ -134,10 +136,10 @@ class _SignUpPageState extends State<SignUpPage> {
                         },
                       ),
 
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
                       // Email Field
-                      Text(
+                      const Text(
                         'Email',
                         style: TextStyle(
                           fontSize: 16,
@@ -145,7 +147,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           color: Colors.black87,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
@@ -180,10 +182,10 @@ class _SignUpPageState extends State<SignUpPage> {
                         },
                       ),
 
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
                       // Password Field
-                      Text(
+                      const Text(
                         'Password',
                         style: TextStyle(
                           fontSize: 16,
@@ -191,7 +193,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           color: Colors.black87,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: !_isPasswordVisible,
@@ -242,10 +244,10 @@ class _SignUpPageState extends State<SignUpPage> {
                         },
                       ),
 
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
                       // Confirm Password Field
-                      Text(
+                      const Text(
                         'Confirm Password',
                         style: TextStyle(
                           fontSize: 16,
@@ -253,7 +255,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           color: Colors.black87,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       TextFormField(
                         controller: _confirmPasswordController,
                         obscureText: !_isConfirmPasswordVisible,
@@ -301,7 +303,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         },
                       ),
 
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
                       // Terms and Conditions
                       Row(
@@ -350,7 +352,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         ],
                       ),
 
-                      SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
                       // Sign Up Button
                       Consumer<AuthenticationProvider>(
@@ -427,7 +429,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         ],
                       ),
 
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
                       // Sign In Link
                       Center(
@@ -458,7 +460,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         ),
                       ),
 
-                      SizedBox(height: 32),
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),

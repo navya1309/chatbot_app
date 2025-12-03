@@ -32,7 +32,7 @@ class ChatMessage {
 }
 
 class GeminiApi with ChangeNotifier {
-  static const geminiKey = "AIzaSyD0_IrSJBT3-wFyko2QPC1s4h-ZkWYZlV4";
+  static const geminiKey = "AIzaSyAA06aAxV-siwTnA4Yj4G0PNcn_TnkwWNM";
 
   final List<Map<String, dynamic>> _chat = [];
   final List<Message> _messages = [

@@ -62,8 +62,8 @@ class _CycleTrackerPageState extends State<CycleTrackerPage>
       body: TabBarView(
         controller: _tabController,
         children: [
-          CalendarView(), // Calendar with highlights
-          CycleLogForm(), // Logging form
+          const CalendarView(), // Calendar with highlights
+          const CycleLogForm(), // Logging form
           EducationalContentPage(), // Articles & videos
           SelfCareToolkitPage(), // Self-care suggestions
         ],

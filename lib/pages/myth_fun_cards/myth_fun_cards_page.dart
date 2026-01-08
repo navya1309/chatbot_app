@@ -4,6 +4,8 @@ import 'card_back.dart';
 import 'myth_fun_service.dart';
 
 class MythFunCardsPage extends StatefulWidget {
+  const MythFunCardsPage({super.key});
+
   @override
   _MythFunCardsPageState createState() => _MythFunCardsPageState();
 }

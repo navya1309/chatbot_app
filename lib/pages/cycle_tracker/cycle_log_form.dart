@@ -4,6 +4,8 @@ import 'cycle_service.dart';
 import 'cycle_data_model.dart';
 
 class CycleLogForm extends StatefulWidget {
+  const CycleLogForm({super.key});
+
   @override
   _CycleLogFormState createState() => _CycleLogFormState();
 }

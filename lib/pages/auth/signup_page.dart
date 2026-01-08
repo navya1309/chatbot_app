@@ -32,14 +32,12 @@ class _SignUpPageState extends State<SignUpPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 40),
-
                 // Back Button
                 Row(
                   children: [
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.arrow_back, color: Colors.black87),
+                      icon: const Icon(Icons.arrow_back, color: Colors.black87),
                     ),
                   ],
                 ),
@@ -50,21 +48,15 @@ class _SignUpPageState extends State<SignUpPage> {
                 Center(
                   child: Column(
                     children: [
-                      Container(
+                      SizedBox(
                         width: 80,
                         height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.blue[600],
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.smart_toy,
-                          color: Colors.white,
-                          size: 40,
-                        ),
+                        child: ClipOval(
+                            child: Image.asset(
+                                "assets/images/pillowtalk_logo.png")),
                       ),
-                      SizedBox(height: 24),
-                      Text(
+                      const SizedBox(height: 24),
+                      const Text(
                         'Create Account',
                         style: TextStyle(
                           fontSize: 28,
@@ -72,7 +64,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           color: Colors.black87,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
                         'Join us and start chatting with your AI assistant',
                         style: TextStyle(
@@ -320,7 +312,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           ),
                           Expanded(
                             child: Padding(
-                              padding: EdgeInsets.only(top: 12),
+                              padding: const EdgeInsets.only(top: 12),
                               child: RichText(
                                 text: TextSpan(
                                   style: TextStyle(
@@ -328,7 +320,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                     color: Colors.grey[600],
                                   ),
                                   children: [
-                                    TextSpan(text: 'I agree to the '),
+                                    const TextSpan(text: 'I agree to the '),
                                     TextSpan(
                                       text: 'Terms of Service',
                                       style: TextStyle(
@@ -336,7 +328,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                    TextSpan(text: ' and '),
+                                    const TextSpan(text: ' and '),
                                     TextSpan(
                                       text: 'Privacy Policy',
                                       style: TextStyle(
@@ -416,7 +408,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         children: [
                           Expanded(child: Divider(color: Colors.grey[300])),
                           Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Text(
                               'or',
                               style: TextStyle(

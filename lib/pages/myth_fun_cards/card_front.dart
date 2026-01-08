@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 class CardFront extends StatelessWidget {
   final dynamic card;
   final bool isMyth;
-  CardFront({required this.card, required this.isMyth});
+  const CardFront({required this.card, required this.isMyth});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      key: ValueKey('front'),
+      key: const ValueKey('front'),
       width: double.infinity,
       constraints: BoxConstraints(
         minHeight: MediaQuery.of(context).size.height * 0.5,

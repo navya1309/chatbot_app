@@ -35,18 +35,12 @@ class _LoginPageState extends State<LoginPage> {
                 Center(
                   child: Column(
                     children: [
-                      Container(
+                      SizedBox(
                         width: 80,
                         height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.blue[600],
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.smart_toy,
-                          color: Colors.white,
-                          size: 40,
-                        ),
+                        child: ClipOval(
+                            child: Image.asset(
+                                "assets/images/pillowtalk_logo.png")),
                       ),
                       const SizedBox(height: 24),
                       const Text(
@@ -270,7 +264,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             TextButton(
                               onPressed: () {
-                                moveTo(context, SignUpPage());
+                                moveTo(context, const SignUpPage());
                               },
                               child: Text(
                                 'Sign Up',

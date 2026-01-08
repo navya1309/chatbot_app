@@ -484,7 +484,7 @@ class JournalingService {
 
   // AI-Generated Content (Mock)
   Future<String> generateConversationSummary(String chatContent) async {
-    await Future.delayed(Duration(seconds: 2)); // Simulate AI processing
+    await Future.delayed(const Duration(seconds: 2)); // Simulate AI processing
 
     List<String> summaryTemplates = [
       "Today you expressed feelings about {topic}. Your emotional state seemed {mood}. Consider reflecting on {suggestion}.",
@@ -503,7 +503,7 @@ class JournalingService {
   }
 
   Future<List<String>> generateMoodTags(String content) async {
-    await Future.delayed(Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 800));
 
     // Mock sentiment analysis
     List<String> possibleMoods = [
@@ -537,7 +537,7 @@ class JournalingService {
       print('DEBUG: Generating weekly insight');
       DateTime now = DateTime.now();
       DateTime weekStart = now.subtract(Duration(days: now.weekday - 1));
-      DateTime weekEnd = weekStart.add(Duration(days: 6));
+      DateTime weekEnd = weekStart.add(const Duration(days: 6));
 
       // Get this week's moods
       final moodsSnapshot = await _firestore
@@ -655,7 +655,7 @@ class JournalingService {
   }
 
   Future<String> getDailyPrompt() async {
-    await Future.delayed(Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 300));
 
     List<String> prompts = [
       'What made you smile today?',
@@ -690,6 +690,8 @@ class JournalingService {
 
 // Main Journaling Page
 class JournalingPage extends StatefulWidget {
+  const JournalingPage({super.key});
+
   @override
   State<JournalingPage> createState() => _JournalingPageState();
 }
@@ -699,21 +701,13 @@ class _JournalingPageState extends State<JournalingPage>
   late TabController _tabController;
 
   final JournalingService _service = JournalingService();
-
   List<JournalEntry> _allEntries = [];
-
   List<JournalEntry> _passiveEntries = [];
-
   List<JournalEntry> _activeEntries = [];
-
   JournalingSettings _settings = JournalingSettings();
-
   WeeklyInsight? _weeklyInsight;
-
   String _dailyPrompt = '';
-
   String _currentMood = 'Happy';
-
   bool _isLoading = true;
 
   @override
@@ -978,7 +972,7 @@ class _JournalingPageState extends State<JournalingPage>
     return RefreshIndicator(
       onRefresh: _loadData,
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1017,12 +1011,12 @@ class _JournalingPageState extends State<JournalingPage>
                   Row(
                     children: [
                       _buildMoodIcon('😊', 'Happy', _currentMood == 'Happy'),
-                      SizedBox(width: 16),
+                      const SizedBox(width: 16),
                       _buildMoodIcon(
                           '😰', 'Anxious', _currentMood == 'Anxious'),
-                      SizedBox(width: 16),
+                      const SizedBox(width: 16),
                       _buildMoodIcon('😴', 'Tired', _currentMood == 'Tired'),
-                      SizedBox(width: 16),
+                      const SizedBox(width: 16),
                       _buildMoodIcon(
                           '🤔', 'Thoughtful', _currentMood == 'Thoughtful'),
                     ],
@@ -1031,13 +1025,13 @@ class _JournalingPageState extends State<JournalingPage>
               ),
             ),
 
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
 
             // Timeline Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                const Text(
                   'Recent Entries',
                   style: TextStyle(
                     fontSize: 20,
@@ -1047,12 +1041,12 @@ class _JournalingPageState extends State<JournalingPage>
                 ),
                 TextButton(
                   onPressed: () {},
-                  child: Text('View All'),
+                  child: const Text('View All'),
                 ),
               ],
             ),
 
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Timeline Entries
             ..._allEntries
@@ -1069,14 +1063,14 @@ class _JournalingPageState extends State<JournalingPage>
     return RefreshIndicator(
       onRefresh: _loadData,
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Controls Card
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
@@ -1084,21 +1078,21 @@ class _JournalingPageState extends State<JournalingPage>
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
                     blurRadius: 10,
-                    offset: Offset(0, 2),
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Auto-Reflection Settings',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   _buildSettingToggle(
                       'Generate conversation summaries',
                       _settings.autoConversationSummary,
@@ -1113,9 +1107,9 @@ class _JournalingPageState extends State<JournalingPage>
               ),
             ),
 
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-            Text(
+            const Text(
               'Reflections from Chat',
               style: TextStyle(
                 fontSize: 20,
@@ -1124,7 +1118,7 @@ class _JournalingPageState extends State<JournalingPage>
               ),
             ),
 
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Auto-generated entries
             ..._passiveEntries
@@ -1134,7 +1128,7 @@ class _JournalingPageState extends State<JournalingPage>
             if (_passiveEntries.isEmpty)
               Center(
                 child: Padding(
-                  padding: EdgeInsets.all(32),
+                  padding: const EdgeInsets.all(32),
                   child: Text(
                     'No auto-reflections yet.\nStart chatting to generate insights!',
                     textAlign: TextAlign.center,
@@ -1212,7 +1206,7 @@ class _JournalingPageState extends State<JournalingPage>
             const SizedBox(height: 24),
 
             // Recent Active Entries
-            Text(
+            const Text(
               'Your Entries',
               style: TextStyle(
                 fontSize: 20,
@@ -1230,7 +1224,7 @@ class _JournalingPageState extends State<JournalingPage>
             if (_activeEntries.isEmpty)
               Center(
                 child: Padding(
-                  padding: EdgeInsets.all(32),
+                  padding: const EdgeInsets.all(32),
                   child: Text(
                     'No journal entries yet.\nTap the + button to create your first entry!',
                     textAlign: TextAlign.center,
@@ -1261,8 +1255,8 @@ class _JournalingPageState extends State<JournalingPage>
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [const Color(0xFF8B5CF6), const Color(0xFF6366F1)],
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -1271,7 +1265,7 @@ class _JournalingPageState extends State<JournalingPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Weekly Digest',
                     style: TextStyle(
                       color: Colors.white,
@@ -1282,7 +1276,7 @@ class _JournalingPageState extends State<JournalingPage>
                   const SizedBox(height: 8),
                   Text(
                     '${_formatDate(_weeklyInsight!.weekStart)} - ${_formatDate(_weeklyInsight!.weekEnd)}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
                     ),
@@ -1350,7 +1344,7 @@ class _JournalingPageState extends State<JournalingPage>
                   Row(
                     children: [
                       Icon(Icons.favorite, color: Colors.pink[600]),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Text(
                         'Daily Affirmation',
                         style: TextStyle(
@@ -1361,7 +1355,7 @@ class _JournalingPageState extends State<JournalingPage>
                       ),
                     ],
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   Text(
                     '"${_weeklyInsight!.affirmation}"',
                     style: TextStyle(
@@ -1395,13 +1389,13 @@ class _JournalingPageState extends State<JournalingPage>
               borderRadius: BorderRadius.circular(20),
             ),
             child: Center(
-              child: Text(emoji, style: TextStyle(fontSize: 20)),
+              child: Text(emoji, style: const TextStyle(fontSize: 20)),
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white70,
               fontSize: 12,
             ),
@@ -1415,8 +1409,8 @@ class _JournalingPageState extends State<JournalingPage>
     Color bgColor = entry.isPassive ? Colors.orange[100]! : Colors.green[100]!;
 
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1425,7 +1419,7 @@ class _JournalingPageState extends State<JournalingPage>
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1438,14 +1432,15 @@ class _JournalingPageState extends State<JournalingPage>
               Row(
                 children: [
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: bgColor,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       entry.title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: Colors.black87,
@@ -1453,7 +1448,7 @@ class _JournalingPageState extends State<JournalingPage>
                     ),
                   ),
                   if (entry.isPassive) ...[
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Icon(Icons.auto_awesome, size: 16, color: Colors.blue[600]),
                   ],
                 ],
@@ -1467,10 +1462,10 @@ class _JournalingPageState extends State<JournalingPage>
               ),
             ],
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
             entry.content,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               color: Colors.black87,
               height: 1.4,
@@ -1478,7 +1473,7 @@ class _JournalingPageState extends State<JournalingPage>
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1486,8 +1481,8 @@ class _JournalingPageState extends State<JournalingPage>
                 children: entry.moods
                     .map(
                       (mood) => Padding(
-                        padding: EdgeInsets.only(right: 8),
-                        child: Text(mood, style: TextStyle(fontSize: 16)),
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(mood, style: const TextStyle(fontSize: 16)),
                       ),
                     )
                     .toList(),
@@ -1495,17 +1490,17 @@ class _JournalingPageState extends State<JournalingPage>
               Row(
                 children: [
                   IconButton(
-                    icon: Icon(Icons.edit_outlined, size: 16),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
                     onPressed: () => _editEntry(entry),
                     padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(),
+                    constraints: const BoxConstraints(),
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   IconButton(
-                    icon: Icon(Icons.delete_outline, size: 16),
+                    icon: const Icon(Icons.delete_outline, size: 16),
                     onPressed: () => _confirmDeleteEntry(entry.id),
                     padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(),
+                    constraints: const BoxConstraints(),
                   ),
                 ],
               ),
@@ -1518,13 +1513,13 @@ class _JournalingPageState extends State<JournalingPage>
 
   Widget _buildSettingToggle(String title, bool value, String settingKey) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             title,
-            style: TextStyle(fontSize: 14),
+            style: const TextStyle(fontSize: 14),
           ),
           Switch(
             value: value,
@@ -1538,8 +1533,8 @@ class _JournalingPageState extends State<JournalingPage>
 
   Widget _buildAutoReflectionCard(JournalEntry entry) {
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1547,7 +1542,7 @@ class _JournalingPageState extends State<JournalingPage>
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1559,7 +1554,7 @@ class _JournalingPageState extends State<JournalingPage>
             children: [
               Text(
                 entry.title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1573,22 +1568,23 @@ class _JournalingPageState extends State<JournalingPage>
               ),
             ],
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
             entry.content,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               color: Colors.black87,
               height: 1.4,
             ),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             children: entry.tags
                 .map(
                   (tag) => Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.blue[100],
                       borderRadius: BorderRadius.circular(12),
@@ -1604,10 +1600,10 @@ class _JournalingPageState extends State<JournalingPage>
                 )
                 .toList(),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           TextButton(
             onPressed: () => _bridgeToActiveJournal(entry),
-            child: Text('Want to reflect more on this?'),
+            child: const Text('Want to reflect more on this?'),
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
             ),
@@ -1622,7 +1618,7 @@ class _JournalingPageState extends State<JournalingPage>
     return GestureDetector(
       onTap: () => _createEntry(type),
       child: Container(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -1630,7 +1626,7 @@ class _JournalingPageState extends State<JournalingPage>
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
-              offset: Offset(0, 2),
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -1646,15 +1642,15 @@ class _JournalingPageState extends State<JournalingPage>
               ),
               child: Icon(icon, color: color, size: 20),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text(
               title,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               subtitle,
               style: TextStyle(
@@ -1672,8 +1668,8 @@ class _JournalingPageState extends State<JournalingPage>
 
   Widget _buildActiveEntryCard(JournalEntry entry) {
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1681,7 +1677,7 @@ class _JournalingPageState extends State<JournalingPage>
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1692,11 +1688,11 @@ class _JournalingPageState extends State<JournalingPage>
             children: [
               Icon(_getIconForType(entry.type),
                   size: 16, color: Colors.blue[600]),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   entry.title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1711,10 +1707,10 @@ class _JournalingPageState extends State<JournalingPage>
               ),
             ],
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
             entry.content,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               color: Colors.black87,
               height: 1.4,
@@ -1722,7 +1718,7 @@ class _JournalingPageState extends State<JournalingPage>
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1731,8 +1727,8 @@ class _JournalingPageState extends State<JournalingPage>
                 children: entry.tags
                     .map(
                       (tag) => Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.green[100],
                           borderRadius: BorderRadius.circular(12),
@@ -1751,17 +1747,17 @@ class _JournalingPageState extends State<JournalingPage>
               Row(
                 children: [
                   IconButton(
-                    icon: Icon(Icons.edit_outlined, size: 16),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
                     onPressed: () => _editEntry(entry),
                     padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(),
+                    constraints: const BoxConstraints(),
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   IconButton(
-                    icon: Icon(Icons.delete_outline, size: 16),
+                    icon: const Icon(Icons.delete_outline, size: 16),
                     onPressed: () => _confirmDeleteEntry(entry.id),
                     padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(),
+                    constraints: const BoxConstraints(),
                   ),
                 ],
               ),
@@ -1777,7 +1773,7 @@ class _JournalingPageState extends State<JournalingPage>
       children: [
         Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -1785,7 +1781,7 @@ class _JournalingPageState extends State<JournalingPage>
         ),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white70,
             fontSize: 12,
           ),
@@ -1797,8 +1793,8 @@ class _JournalingPageState extends State<JournalingPage>
   Widget _buildInsightCard(
       String title, String content, IconData icon, Color color) {
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1806,7 +1802,7 @@ class _JournalingPageState extends State<JournalingPage>
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1824,20 +1820,20 @@ class _JournalingPageState extends State<JournalingPage>
                 ),
                 child: Icon(icon, color: color, size: 20),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
             content,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               color: Colors.black87,
               height: 1.4,
@@ -1860,7 +1856,7 @@ class _JournalingPageState extends State<JournalingPage>
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text('Create Journal Entry'),
+          title: const Text('Create Journal Entry'),
           content: Container(
             width: double.maxFinite,
             child: SingleChildScrollView(
@@ -1869,24 +1865,24 @@ class _JournalingPageState extends State<JournalingPage>
                 children: [
                   TextField(
                     controller: titleController,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Title',
                       border: OutlineInputBorder(),
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: contentController,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Content',
                       border: OutlineInputBorder(),
                       alignLabelWithHint: true,
                     ),
                     maxLines: 5,
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   _buildTagSelector(selectedTags, setDialogState),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   _buildMoodSelector(selectedMoods, setDialogState),
                 ],
               ),
@@ -1895,7 +1891,7 @@ class _JournalingPageState extends State<JournalingPage>
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -1915,7 +1911,7 @@ class _JournalingPageState extends State<JournalingPage>
                   _saveEntry(newEntry);
                 }
               },
-              child: Text('Save'),
+              child: const Text('Save'),
             ),
           ],
         ),
@@ -1927,7 +1923,7 @@ class _JournalingPageState extends State<JournalingPage>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Journaling Settings'),
+        title: const Text('Journaling Settings'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1944,7 +1940,7 @@ class _JournalingPageState extends State<JournalingPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close'),
+            child: const Text('Close'),
           ),
         ],
       ),
@@ -1966,8 +1962,8 @@ class _JournalingPageState extends State<JournalingPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Tags:', style: TextStyle(fontWeight: FontWeight.w600)),
-        SizedBox(height: 8),
+        const Text('Tags:', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           children: availableTags
@@ -2004,8 +2000,8 @@ class _JournalingPageState extends State<JournalingPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Moods:', style: TextStyle(fontWeight: FontWeight.w600)),
-        SizedBox(height: 8),
+        const Text('Moods:', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           children: availableMoods
@@ -2037,20 +2033,20 @@ class _JournalingPageState extends State<JournalingPage>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete Entry'),
-        content: Text(
+        title: const Text('Delete Entry'),
+        content: const Text(
             'Are you sure you want to delete this entry? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
               _deleteEntry(id);
             },
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -2059,7 +2055,7 @@ class _JournalingPageState extends State<JournalingPage>
 
   void _bridgeToActiveJournal(JournalEntry passiveEntry) {
     _tabController.animateTo(2); // Switch to Active Journal tab
-    Future.delayed(Duration(milliseconds: 300), () {
+    Future.delayed(const Duration(milliseconds: 300), () {
       _showCreateEntryDialog(
         JournalEntryType.free_write,
         'Reflecting on: ${passiveEntry.title}',

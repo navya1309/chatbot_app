@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'cycle_service.dart';
 
 class CalendarView extends StatefulWidget {
+  const CalendarView({super.key});
+
   @override
   _CalendarViewState createState() => _CalendarViewState();
 }
@@ -198,9 +200,9 @@ class _CalendarViewState extends State<CalendarView> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Row(
+                  const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: const [
+                    children: [
                       Text('S',
                           style: TextStyle(
                               color: Colors.white70,

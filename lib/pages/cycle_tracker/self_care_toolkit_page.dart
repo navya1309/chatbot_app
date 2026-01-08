@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class SelfCareToolkitPage extends StatelessWidget {
+  const SelfCareToolkitPage({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ListView(

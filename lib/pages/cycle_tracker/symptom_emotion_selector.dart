@@ -5,7 +5,8 @@ class SymptomEmotionSelector extends StatelessWidget {
   final Map<String, bool> selectedSymptoms;
   final ValueChanged<Map<String, bool>> onSelectionChanged;
 
-  SymptomEmotionSelector({
+  const SymptomEmotionSelector({
+    super.key,
     required this.symptoms,
     required this.selectedSymptoms,
     required this.onSelectionChanged,

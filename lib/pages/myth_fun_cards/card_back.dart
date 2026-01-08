@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 class CardBack extends StatelessWidget {
   final dynamic card;
   final bool isMyth;
-  CardBack({required this.card, required this.isMyth});
+  const CardBack({required this.card, required this.isMyth});
 
   @override
   Widget build(BuildContext context) {
     String mainText = isMyth ? card.truth : card.fact;
 
     return Container(
-      key: ValueKey('back'),
+      key: const ValueKey('back'),
       width: double.infinity,
       constraints: BoxConstraints(
         minHeight: MediaQuery.of(context).size.height * 0.5,

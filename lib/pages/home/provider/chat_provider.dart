@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'dart:convert';
 import 'dart:developer';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:http/http.dart' as http;
 
 class Message {
@@ -32,7 +33,9 @@ class ChatMessage {
 }
 
 class GeminiApi with ChangeNotifier {
-  static const geminiKey = "AIzaSyD0_IrSJBT3-wFyko2QPC1s4h-ZkWYZlV4";
+  static const String _geminiKeyPath = 'config/gemini_api_key';
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+  String? _geminiKey;
 
   final List<Map<String, dynamic>> _chat = [];
   final List<Message> _messages = [
@@ -47,10 +50,32 @@ class GeminiApi with ChangeNotifier {
   bool _loading = false;
   bool get loading => _loading;
 
+  Future<void> make() async {
+    await _loadGeminiKey();
+  }
+
+  Future<String> _loadGeminiKey() async {
+    if (_geminiKey != null && _geminiKey!.isNotEmpty) {
+      return _geminiKey!;
+    }
+    final snapshot = await _dbRef.child(_geminiKeyPath).get();
+    if (!snapshot.exists) {
+      throw StateError('Gemini API key missing at $_geminiKeyPath');
+    }
+    final value = snapshot.value;
+    if (value is! String || value.trim().isEmpty) {
+      throw StateError('Gemini API key is invalid at $_geminiKeyPath');
+    }
+    _geminiKey = value.trim();
+    return _geminiKey!;
+  }
+
   Future<String> chatWithGemini(String prompt) async {
     try {
       print('DEBUG: ChatProvider - Sending message to Gemini: $prompt');
       _loading = true;
+      final geminiKey = await _loadGeminiKey();
+
       _chat.add({
         "role": "user",
         "parts": [

@@ -6,11 +6,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'pages/auth/login_page.dart';
+import 'pages/onboarding/onboarding_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform);
+  }
   runApp(
     MultiProvider(providers: [
       ChangeNotifierProvider(
@@ -82,7 +85,7 @@ class MyApp extends StatelessWidget {
             if (asyncSnapshot.hasData && asyncSnapshot.data != null) {
               return BottomNavigation();
             }
-            return const LoginPage();
+            return const OnboardingPage();
           }),
     );
   }

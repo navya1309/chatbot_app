@@ -5,6 +5,7 @@ import '../cycle_tracker/cycle_tracker_page.dart';
 import '../home/home_page.dart';
 import '../journaling/journaling_page.dart';
 import '../myth_fun_cards/myth_fun_cards_page.dart';
+import '../profile/profile_page.dart';
 
 class BottomNavigation extends StatefulWidget {
   @override
@@ -20,6 +21,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
     const ChatbotHomeScreen(),
     CycleTrackerPage(),
     MythFunCardsPage(),
+    const ProfilePage(),
   ];
 
   void _onItemTapped(int index) {
@@ -83,6 +85,12 @@ class _BottomNavigationState extends State<BottomNavigation> {
                   activeIcon: Icons.lightbulb,
                   label: 'Learn',
                   index: 3,
+                ),
+                _buildNavItem(
+                  icon: Icons.person_outline,
+                  activeIcon: Icons.person,
+                  label: 'Profile',
+                  index: 4,
                 ),
               ],
             ),

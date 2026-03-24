@@ -53,7 +53,7 @@ class DefaultFirebaseOptions {
     projectId: 'chatbot-app-708d8',
     authDomain: 'chatbot-app-708d8.firebaseapp.com',
     databaseURL:
-        'https://chatbot-app-708d8-default-rtdb.asia-southeast1.firebasedatabase.app/',
+        'https://chatbot-app-708d8-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'chatbot-app-708d8.firebasestorage.app',
     measurementId: 'G-KTE242FPSD',
   );
@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '138876399906',
     projectId: 'chatbot-app-708d8',
     databaseURL:
-        'https://chatbot-app-708d8-default-rtdb.asia-southeast1.firebasedatabase.app/',
+        'https://chatbot-app-708d8-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'chatbot-app-708d8.firebasestorage.app',
   );
 
@@ -74,9 +74,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '138876399906',
     projectId: 'chatbot-app-708d8',
     databaseURL:
-        'https://chatbot-app-708d8-default-rtdb.asia-southeast1.firebasedatabase.app/',
+        'https://chatbot-app-708d8-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'chatbot-app-708d8.firebasestorage.app',
     iosBundleId: 'com.pillowtalk.app',
   );
-
 }

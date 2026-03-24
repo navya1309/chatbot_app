@@ -75,7 +75,7 @@ class GeminiApi with ChangeNotifier {
       print('DEBUG: ChatProvider - Sending message to Gemini: $prompt');
       _loading = true;
       final geminiKey = await _loadGeminiKey();
-
+      print('DEBUG: ChatProvider - Gemini key: $geminiKey');
       _chat.add({
         "role": "user",
         "parts": [

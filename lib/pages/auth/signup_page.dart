@@ -1,6 +1,8 @@
 import 'package:chatbot_app_1/core/utils.dart';
 import 'package:chatbot_app_1/pages/auth/provider/auth_provider.dart';
 import 'package:chatbot_app_1/pages/bottom_navigation/bottom_navigation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -360,13 +362,14 @@ class _SignUpPageState extends State<SignUpPage> {
                                           await provider.registerWithEmail(
                                               _emailController.text.trim(),
                                               _passwordController.text);
-                                      if (context.mounted) {
-                                        if (res) {
-                                          moveReplace(
-                                              context, BottomNavigation());
-                                        } else {
-                                          showSnackBar(context,
-                                              'Smoething went wrong!!');
+                                if (context.mounted) {
+                                  if (res) {
+                                    await _createUserProfile();
+                                    moveReplace(
+                                        context, BottomNavigation());
+                                  } else {
+                                    showSnackBar(context,
+                                        'Smoething went wrong!!');
                                         }
                                       }
                                     },
@@ -471,5 +474,25 @@ class _SignUpPageState extends State<SignUpPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _createUserProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({
+        'fullName': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Failed to create user profile: $e');
+    }
   }
 }

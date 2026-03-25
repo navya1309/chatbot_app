@@ -24,30 +24,30 @@ class MythFunService {
     ),
     MythBustingCard(
       id: '3',
-      myth: 'If you’re anxious, you just need to calm down',
+      myth: "If you're anxious, you just need to calm down",
       truth:
-          'Anxiety is not something you can just ‘shut off.’ It needs tools, support, and patience.',
+          "Anxiety is not something you can just 'shut off.' It needs tools, support, and patience.",
       category: CardCategory.BrainEmotions,
     ),
     MythBustingCard(
       id: '4',
-      myth: 'Talking to a therapist means you’re crazy.',
+      myth: "Talking to a therapist means you're crazy.",
       truth:
-          'Therapy is for anyone who wants to feel better or understand themselves — just like a gym is for your body, therapy is for your mind.',
+          "Therapy is for anyone who wants to feel better or understand themselves — just like a gym is for your body, therapy is for your mind.",
       category: CardCategory.BrainEmotions,
     ),
     MythBustingCard(
       id: '5',
-      myth: 'Only girls get eating disorders',
+      myth: "Only girls get eating disorders",
       truth:
-          'Anyone of any gender can struggle with body image and food-related anxiety.',
+          "Anyone of any gender can struggle with body image and food-related anxiety.",
       category: CardCategory.GenderIdentity,
     ),
     MythBustingCard(
       id: '6',
-      myth: 'Being sad for a few days means you have depression.',
+      myth: "Being sad for a few days means you have depression.",
       truth:
-          'Occasional sadness is normal. Depression is deeper, longer-lasting, and diagnosable.',
+          "Occasional sadness is normal. Depression is deeper, longer-lasting, and diagnosable.",
       category: CardCategory.BrainEmotions,
     ),
   ];
@@ -55,37 +55,37 @@ class MythFunService {
   List<FunFactCard> funFactCards = [
     FunFactCard(
       id: '1',
-      question: 'Did you know your heart can literally ‘sync’ with a friend’s?',
+      question: "Did you know your heart can literally 'sync' with a friend's?",
       fact:
-          'When you sit with someone and feel emotionally connected, your heartbeats can align. That’s human magic.',
+          "When you sit with someone and feel emotionally connected, your heartbeats can align. That's human magic.",
       category: CardCategory.BrainEmotions,
     ),
     FunFactCard(
       id: '2',
-      question: 'Cuddling can reduce pain?',
+      question: "Cuddling can reduce pain?",
       fact:
-          'Yup. Physical touch releases oxytocin — a hormone that fights stress and eases physical pain.',
+          "Yup. Physical touch releases oxytocin — a hormone that fights stress and eases physical pain.",
       category: CardCategory.BodyAwesome,
     ),
     FunFactCard(
       id: '3',
       question: 'Laughter boosts immunity!',
       fact:
-          'Laughing activates immune cells and reduces stress hormones. It’s your body’s free medicine.',
+          "Laughing activates immune cells and reduces stress hormones. It's your body's free medicine.",
       category: CardCategory.FunScienceFeelings,
     ),
     FunFactCard(
       id: '4',
-      question: 'Your brain rewires when you learn something new.',
+      question: "Your brain rewires when you learn something new.",
       fact:
-          'Every time you try a new hobby or reflect deeply, your brain forms new neural connections. You’re always growing.',
+          "Every time you try a new hobby or reflect deeply, your brain forms new neural connections. You're always growing.",
       category: CardCategory.BodyAwesome,
     ),
     FunFactCard(
       id: '5',
-      question: 'There are more neurons in your gut than in a cat’s brain.',
+      question: "There are more neurons in your gut than in a cat's brain.",
       fact:
-          'That’s why your gut feelings are often right — your body has its own ‘second brain.’',
+          "That's why your gut feelings are often right — your body has its own 'second brain.'",
       category: CardCategory.BodyAwesome,
     ),
   ];

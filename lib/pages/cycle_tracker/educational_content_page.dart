@@ -5,14 +5,14 @@ class EducationalContentPage extends StatelessWidget {
     _EducationalTopic(
       title: "What is a Period?",
       content: """
-A period (also called menstruation) is when the lining of the uterus sheds and exits the body through the vagina. It’s part of the menstrual cycle, your body’s natural way of preparing for a potential pregnancy each month.
+A period (also called menstruation) is when the lining of the uterus sheds and exits the body through the vagina. It's part of the menstrual cycle, your body's natural way of preparing for a potential pregnancy each month.
 
 Most people get their first period between ages 9–15, and it can take a few years to become regular.
 
 Basic Breakdown:
 - 🧠 Hormones signal the body to release an egg (ovulation).
 - 🏡 The uterus builds a lining (endometrium) in case the egg gets fertilized.
-- 💨 If there’s no pregnancy, the lining breaks down and flows out as a period.
+- 💨 If there's no pregnancy, the lining breaks down and flows out as a period.
 
 What does it look like?
 - Blood is usually dark red or brown.
@@ -21,9 +21,9 @@ What does it look like?
 """,
     ),
     _EducationalTopic(
-      title: "What’s Normal and What’s Not?",
+      title: "What's Normal and What's Not?",
       content: """
-Everyone’s cycle is different! But here’s a guide to help figure out what’s “normal” and when to check in with a doctor.
+Everyone's cycle is different! But here's a guide to help figure out what's “normal” and when to check in with a doctor.
 
 ✅ Totally Normal:
 - Cycle length: 21–35 days (counted from the first day of one period to the next).
@@ -35,7 +35,7 @@ Everyone’s cycle is different! But here’s a guide to help figure out what’
 - Periods last longer than 8 days.
 - Super painful cramps that stop you from doing daily things.
 - Bleeding through pads/tampons every hour for several hours.
-- You haven’t gotten your period by age 16.
+- You haven't gotten your period by age 16.
 - Periods suddenly stop for 3+ months (if not pregnant).
 - You feel dizzy, weak, or constantly fatigued during periods.
 """,
@@ -53,7 +53,7 @@ PMDD (Premenstrual Dysphoric Disorder):
 - A more intense form of PMS.
 - Affects mood very deeply — like depression, anxiety, or rage.
 - Can interfere with school, sleep, relationships, and everyday life.
-- PMDD is medical, not just “being moody.” If it feels extreme, talk to a doctor or therapist — there’s help.
+- PMDD is medical, not just “being moody.” If it feels extreme, talk to a doctor or therapist — there's help.
 """,
     ),
     _EducationalTopic(
@@ -69,44 +69,44 @@ Natural Relief Ideas:
 - Herbal teas: chamomile, peppermint, raspberry leaf = calming.
 - Magnesium + vitamin B6: can reduce cramps & moodiness.
 
-If nothing works or cramps feel like sharp stabbing pain — talk to a doctor. You don’t need to suffer in silence.
+If nothing works or cramps feel like sharp stabbing pain — talk to a doctor. You don't need to suffer in silence.
 """,
     ),
     _EducationalTopic(
       title: "Period Myths Busted",
       content: """
-Let’s get real and ditch the drama.
+Let's get real and ditch the drama.
 
 ❌ Myth - ✅Truth
 
-You can’t swim on your period. - You totally can! Just use a tampon or menstrual cup.
+You can't swim on your period. - You totally can! Just use a tampon or menstrual cup.
 
-Period blood is dirty. - Nope. It’s just blood + tissue. Not gross. Just biology.
+Period blood is dirty. - Nope. It's just blood + tissue. Not gross. Just biology.
 
-You can’t get pregnant on your period. - It’s rare, but still possible.
+You can't get pregnant on your period. - It's rare, but still possible.
 
-Periods sync with friends. - It feels like it, but there’s no proven science.
+Periods sync with friends. - It feels like it, but there's no proven science.
 
-You shouldn’t exercise on your period. - Actually, it can reduce cramps and improve mood!
+You shouldn't exercise on your period. - Actually, it can reduce cramps and improve mood!
 """,
     ),
     _EducationalTopic(
       title: "Periods & Mental Health",
       content: """
-Hormones affect your body and your brain. You’re not imagining it.
+Hormones affect your body and your brain. You're not imagining it.
 
-Emotional Rollercoaster? You’re Not Alone.
+Emotional Rollercoaster? You're Not Alone.
 - Estrogen and progesterone influence serotonin, which affects mood.
 - PMS can make you feel anxious, sensitive, or down.
 - You might feel foggy, unmotivated, or just not yourself.
 
 Tips for Period-Time Mental Health:
 - Track your mood (so you can spot patterns).
-- Plan light days — don’t push yourself too hard.
+- Plan light days — don't push yourself too hard.
 - Sleep = essential. Aim for 8 hours.
 - Talk about it. To friends, a journal, a therapist — whatever works.
 
-If your period makes you feel hopeless, like nothing matters, or like you can’t cope — reach out for help. You’re not weak. You’re human.
+If your period makes you feel hopeless, like nothing matters, or like you can't cope — reach out for help. You're not weak. You're human.
 """,
     ),
     _EducationalTopic(
@@ -116,7 +116,7 @@ Not everyone who gets periods is a girl. And not every girl gets periods.
 
 If you're trans, non-binary, or gender diverse and you menstruate, you deserve period care that makes you feel safe, valid, and seen.
 
-You’re Not Alone.
+You're Not Alone.
 - Periods can feel dysphoric or triggering.
 - Products are often marketed with super feminine vibes — which sucks.
 - Using the bathroom during your period may feel uncomfortable or unsafe.
@@ -148,7 +148,7 @@ Your period can feel different every time — bloated one day, emotional the nex
 - 🗒 Journaling prompt: “Today, I feel… because…” Write it out. Let it go.
 - 🫶 Affirmation card: “I am not my emotions. I am allowed to feel everything and still be okay.”
 - 🌿 Mini grounding practice: 5 things you see, 4 you touch, 3 you hear, 2 you smell, 1 you taste.
-- 🤝 Send a message to a close friend: “Hey, I’m feeling a little off today. Just needed to say it.”
+- 🤝 Send a message to a close friend: “Hey, I'm feeling a little off today. Just needed to say it.”
 
 🛏 Tired or Bloated?
 - 😌 Try lying on your left side with a pillow under your knees.
@@ -168,30 +168,30 @@ Your period can feel different every time — bloated one day, emotional the nex
 Tap to play short, calming audios whenever you need a brain reset or body love.
 
 🌀 Body Positivity Meditation (5 min)
-“I am grateful for all my body does — even when it feels like a mess. My body is not the enemy, it’s my home.”
+“I am grateful for all my body does — even when it feels like a mess. My body is not the enemy, it's my home.”
 
 💗 Gentle Affirmation Loop
 “I can be soft with myself.”
 “This will pass.”
-“I’m allowed to slow down.”
+“I'm allowed to slow down.”
 “My emotions are valid.”
 “This body is doing its best.”
 
 🌙 Sleep Meditation: Period Edition
-Guided relaxation to help you fall asleep when cramps or thoughts won’t let you.
+Guided relaxation to help you fall asleep when cramps or thoughts won't let you.
 
-🩸 “What’s Up With My Body Today?” Button
+🩸 “What's Up With My Body Today?” Button
 Ever just think, “Why am I like this right now??” Hit the button. Get clarity. Feel better.
 
-You’ll see:
+You'll see:
 - 🧬 Where you are in your cycle (e.g., early period, late luteal, ovulation).
 - 🌡️ Hormone snapshot (e.g., estrogen rising = more energy; progesterone dropping = mood dips).
 - 🧠 What to expect today: brain fog? snack cravings? sensitivity?
 - ❤️ Kind coping suggestions.
 
-Because understanding your body = power. And your period shouldn’t be a mystery.
+Because understanding your body = power. And your period shouldn't be a mystery.
 
-🧡 Reminder: You don’t have to be “productive” while bleeding. You don’t have to love your period. You just have to listen to your body and treat it with softness.
+🧡 Reminder: You don't have to be “productive” while bleeding. You don't have to love your period. You just have to listen to your body and treat it with softness.
 
 Want to customize your toolkit even more? We can personalize your affirmations, sync soothing activities with your cycle phase, or create a “panic button” for cramps, anxiety, or sudden breakdowns. Just say the word!
 """,

@@ -21,18 +21,17 @@ class _CalendarViewState extends State<CalendarView> {
   }
 
   Future<void> _loadCalendarData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      print('DEBUG: CalendarView - Loading calendar data for $_currentMonth');
       final days = await _cycleService.getCalendarDays(_currentMonth);
+      if (!mounted) return;
       setState(() {
         _calendarDays = days;
         _isLoading = false;
       });
-      print('DEBUG: CalendarView - Calendar data loaded successfully');
-    } catch (e, stackTrace) {
-      print('ERROR: CalendarView - Failed to load calendar data: $e');
-      print('STACK TRACE: $stackTrace');
+    } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }

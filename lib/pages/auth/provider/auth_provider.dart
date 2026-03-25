@@ -1,8 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class AuthenticationProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   User? _user;
 
   AuthenticationProvider() {
@@ -17,19 +19,13 @@ class AuthenticationProvider extends ChangeNotifier {
 
   Future<bool> signInWithEmail(String email, String password) async {
     try {
-      print('DEBUG: AuthProvider - Attempting to sign in user: $email');
       _loading = true;
       notifyListeners();
       await _auth.signInWithEmailAndPassword(email: email, password: password);
-      print('DEBUG: AuthProvider - Sign in successful');
       return true;
-    } on FirebaseAuthException catch (e, stackTrace) {
-      print('ERROR: AuthProvider - Sign in failed: ${e.code} - ${e.message}');
-      print('STACK TRACE: $stackTrace');
+    } on FirebaseAuthException catch (_) {
       return false;
-    } catch (e, stackTrace) {
-      print('ERROR: AuthProvider - Unexpected error during sign in: $e');
-      print('STACK TRACE: $stackTrace');
+    } catch (_) {
       return false;
     } finally {
       _loading = false;
@@ -37,23 +33,38 @@ class AuthenticationProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> registerWithEmail(String email, String password) async {
+  /// Creates the Firebase Auth account AND saves the user profile to Firestore.
+  Future<bool> registerWithEmail(
+    String email,
+    String password, {
+    required String fullName,
+  }) async {
     try {
-      print('DEBUG: AuthProvider - Attempting to register user: $email');
       _loading = true;
       notifyListeners();
-      await _auth.createUserWithEmailAndPassword(
-          email: email, password: password);
-      print('DEBUG: AuthProvider - Registration successful');
+
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final uid = credential.user?.uid;
+      if (uid != null) {
+        // Save display name on the Auth user object
+        await credential.user?.updateDisplayName(fullName);
+
+        // Persist profile data to Firestore
+        await _firestore.collection('users').doc(uid).set({
+          'fullName': fullName,
+          'email': email,
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
       return true;
-    } on FirebaseAuthException catch (e, stackTrace) {
-      print(
-          'ERROR: AuthProvider - Registration failed: ${e.code} - ${e.message}');
-      print('STACK TRACE: $stackTrace');
+    } on FirebaseAuthException catch (_) {
       return false;
-    } catch (e, stackTrace) {
-      print('ERROR: AuthProvider - Unexpected error during registration: $e');
-      print('STACK TRACE: $stackTrace');
+    } catch (_) {
       return false;
     } finally {
       _loading = false;
@@ -63,21 +74,11 @@ class AuthenticationProvider extends ChangeNotifier {
 
   Future<void> signOut() async {
     try {
-      print('DEBUG: AuthProvider - Signing out user');
       await _auth.signOut();
-      print('DEBUG: AuthProvider - Sign out successful');
-    } catch (e, stackTrace) {
-      print('ERROR: AuthProvider - Sign out failed: $e');
-      print('STACK TRACE: $stackTrace');
-    }
+    } catch (_) {}
   }
 
   void _onAuthStateChanged(User? firebaseUser) {
-    if (firebaseUser != null) {
-      print('DEBUG: AuthProvider - User authenticated: ${firebaseUser.uid}');
-    } else {
-      print('DEBUG: AuthProvider - User signed out');
-    }
     _user = firebaseUser;
     notifyListeners();
   }

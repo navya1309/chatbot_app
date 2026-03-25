@@ -1,694 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'provider/journaling_provider.dart';
 
-// Data Models
-class JournalEntry {
-  final String id;
-  final String title;
-  final String content;
-  final DateTime timestamp;
-  final List<String> tags;
-  final List<String> moods;
-  final JournalEntryType type;
-  final bool isPassive;
-
-  JournalEntry({
-    required this.id,
-    required this.title,
-    required this.content,
-    required this.timestamp,
-    required this.tags,
-    required this.moods,
-    required this.type,
-    this.isPassive = false,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'title': title,
-      'content': content,
-      'timestamp': timestamp.toIso8601String(),
-      'tags': tags,
-      'moods': moods,
-      'type': type.toString().split('.').last,
-      'isPassive': isPassive,
-    };
-  }
-
-  factory JournalEntry.fromJson(Map<String, dynamic> json) {
-    return JournalEntry(
-      id: json['id'],
-      title: json['title'],
-      content: json['content'],
-      timestamp: DateTime.parse(json['timestamp']),
-      tags: List<String>.from(json['tags']),
-      moods: List<String>.from(json['moods']),
-      type: JournalEntryType.values.firstWhere(
-        (e) => e.toString().split('.').last == json['type'],
-      ),
-      isPassive: json['isPassive'] ?? false,
-    );
-  }
-}
-
-enum JournalEntryType {
-  daily_prompt,
-  free_write,
-  voice_note,
-  doodle,
-  gratitude,
-  auto_reflection,
-  conversation_summary
-}
-
-class MoodData {
-  final String mood;
-  final String emoji;
-  final DateTime timestamp;
-  final double intensity; // 1-10 scale
-
-  MoodData({
-    required this.mood,
-    required this.emoji,
-    required this.timestamp,
-    required this.intensity,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'mood': mood,
-      'emoji': emoji,
-      'timestamp': timestamp.toIso8601String(),
-      'intensity': intensity,
-    };
-  }
-
-  factory MoodData.fromJson(Map<String, dynamic> json) {
-    return MoodData(
-      mood: json['mood'],
-      emoji: json['emoji'],
-      timestamp: DateTime.parse(json['timestamp']),
-      intensity: json['intensity'].toDouble(),
-    );
-  }
-}
-
-class WeeklyInsight {
-  final DateTime weekStart;
-  final DateTime weekEnd;
-  final Map<String, double> moodPercentages;
-  final List<String> topTopics;
-  final List<String> suggestions;
-  final String affirmation;
-  final int totalEntries;
-
-  WeeklyInsight({
-    required this.weekStart,
-    required this.weekEnd,
-    required this.moodPercentages,
-    required this.topTopics,
-    required this.suggestions,
-    required this.affirmation,
-    required this.totalEntries,
-  });
-}
-
-class JournalingSettings {
-  bool autoConversationSummary;
-  bool moodAutoTagging;
-  bool triggerBasedEntries;
-  bool weeklyDigest;
-
-  JournalingSettings({
-    this.autoConversationSummary = true,
-    this.moodAutoTagging = true,
-    this.triggerBasedEntries = false,
-    this.weeklyDigest = true,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'autoConversationSummary': autoConversationSummary,
-      'moodAutoTagging': moodAutoTagging,
-      'triggerBasedEntries': triggerBasedEntries,
-      'weeklyDigest': weeklyDigest,
-    };
-  }
-
-  factory JournalingSettings.fromJson(Map<String, dynamic> json) {
-    return JournalingSettings(
-      autoConversationSummary: json['autoConversationSummary'] ?? true,
-      moodAutoTagging: json['moodAutoTagging'] ?? true,
-      triggerBasedEntries: json['triggerBasedEntries'] ?? false,
-      weeklyDigest: json['weeklyDigest'] ?? true,
-    );
-  }
-}
-
-// Backend Service
-class JournalingService {
-  static final JournalingService _instance = JournalingService._internal();
-  factory JournalingService() => _instance;
-  JournalingService._internal();
-
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  String get _userId => _auth.currentUser?.uid ?? '';
-
-  // CRUD Operations for Journal Entries
-  Future<List<JournalEntry>> getAllEntries() async {
-    try {
-      if (_userId.isEmpty) {
-        print('DEBUG: getAllEntries - User ID is empty');
-        return [];
-      }
-
-      print('DEBUG: Fetching all journal entries for user: $_userId');
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('journal_entries')
-          .orderBy('timestamp', descending: true)
-          .get();
-
-      print('DEBUG: Retrieved ${snapshot.docs.length} journal entries');
-      return snapshot.docs
-          .map((doc) => JournalEntry.fromJson({...doc.data(), 'id': doc.id}))
-          .toList();
-    } catch (e, stackTrace) {
-      print('ERROR: getAllEntries failed - $e');
-      print('STACK TRACE: $stackTrace');
-      return [];
-    }
-  }
-
-  Future<List<JournalEntry>> getEntriesByType(JournalEntryType type) async {
-    try {
-      if (_userId.isEmpty) {
-        print('DEBUG: getEntriesByType - User ID is empty');
-        return [];
-      }
-
-      print(
-          'DEBUG: Fetching entries of type: ${type.toString().split('.').last}');
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('journal_entries')
-          .where('type', isEqualTo: type.toString().split('.').last)
-          .orderBy('timestamp', descending: true)
-          .get();
-
-      print(
-          'DEBUG: Retrieved ${snapshot.docs.length} entries of type ${type.toString().split('.').last}');
-      return snapshot.docs
-          .map((doc) => JournalEntry.fromJson({...doc.data(), 'id': doc.id}))
-          .toList();
-    } catch (e, stackTrace) {
-      print('ERROR: getEntriesByType failed - $e');
-      print('STACK TRACE: $stackTrace');
-      return [];
-    }
-  }
-
-  Future<List<JournalEntry>> getPassiveEntries() async {
-    try {
-      if (_userId.isEmpty) {
-        print('DEBUG: getPassiveEntries - User ID is empty');
-        return [];
-      }
-
-      print('DEBUG: Fetching passive journal entries');
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('journal_entries')
-          .where('isPassive', isEqualTo: true)
-          // .orderBy('timestamp', descending: true)
-          .get();
-
-      print('DEBUG: Retrieved ${snapshot.docs.length} passive entries');
-      return snapshot.docs
-          .map((doc) => JournalEntry.fromJson({...doc.data(), 'id': doc.id}))
-          .toList();
-    } catch (e, stackTrace) {
-      print('ERROR: getPassiveEntries failed - $e');
-      print('STACK TRACE: $stackTrace');
-      return [];
-    }
-  }
-
-  Future<List<JournalEntry>> getActiveEntries() async {
-    try {
-      if (_userId.isEmpty) {
-        print('DEBUG: getActiveEntries - User ID is empty');
-        return [];
-      }
-
-      print('DEBUG: Fetching active journal entries');
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('journal_entries')
-          .where('isPassive', isEqualTo: false)
-          .orderBy('timestamp', descending: true)
-          .get();
-
-      print('DEBUG: Retrieved ${snapshot.docs.length} active entries');
-      return snapshot.docs
-          .map((doc) => JournalEntry.fromJson({...doc.data(), 'id': doc.id}))
-          .toList();
-    } catch (e, stackTrace) {
-      print('ERROR: getActiveEntries failed - $e');
-      print('STACK TRACE: $stackTrace');
-      return [];
-    }
-  }
-
-  Future<JournalEntry> createEntry(JournalEntry entry) async {
-    try {
-      if (_userId.isEmpty) {
-        print('ERROR: createEntry - User not logged in');
-        throw Exception('User not logged in');
-      }
-
-      print('DEBUG: Creating journal entry: ${entry.title}');
-      final docRef = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('journal_entries')
-          .add(entry.toJson());
-
-      print('DEBUG: Journal entry created successfully with ID: ${docRef.id}');
-      return JournalEntry(
-        id: docRef.id,
-        title: entry.title,
-        content: entry.content,
-        timestamp: entry.timestamp,
-        tags: entry.tags,
-        moods: entry.moods,
-        type: entry.type,
-        isPassive: entry.isPassive,
-      );
-    } catch (e, stackTrace) {
-      print('ERROR: createEntry failed - $e');
-      print('STACK TRACE: $stackTrace');
-      rethrow;
-    }
-  }
-
-  Future<JournalEntry> updateEntry(JournalEntry entry) async {
-    try {
-      if (_userId.isEmpty) {
-        print('ERROR: updateEntry - User not logged in');
-        throw Exception('User not logged in');
-      }
-
-      print('DEBUG: Updating journal entry: ${entry.id}');
-      await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('journal_entries')
-          .doc(entry.id)
-          .update(entry.toJson());
-
-      print('DEBUG: Journal entry updated successfully');
-      return entry;
-    } catch (e, stackTrace) {
-      print('ERROR: updateEntry failed - $e');
-      print('STACK TRACE: $stackTrace');
-      rethrow;
-    }
-  }
-
-  Future<void> deleteEntry(String id) async {
-    try {
-      if (_userId.isEmpty) {
-        print('ERROR: deleteEntry - User not logged in');
-        throw Exception('User not logged in');
-      }
-
-      print('DEBUG: Deleting journal entry: $id');
-      await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('journal_entries')
-          .doc(id)
-          .delete();
-
-      print('DEBUG: Journal entry deleted successfully');
-    } catch (e, stackTrace) {
-      print('ERROR: deleteEntry failed - $e');
-      print('STACK TRACE: $stackTrace');
-      rethrow;
-    }
-  }
-
-  // Mood Management
-  Future<void> updateCurrentMood(String mood, double intensity) async {
-    try {
-      if (_userId.isEmpty) {
-        print('ERROR: updateCurrentMood - User not logged in');
-        throw Exception('User not logged in');
-      }
-
-      print('DEBUG: Updating mood to: $mood with intensity: $intensity');
-      final moodData = MoodData(
-        mood: mood,
-        emoji: _getMoodEmoji(mood),
-        timestamp: DateTime.now(),
-        intensity: intensity,
-      );
-
-      await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('moods')
-          .add(moodData.toJson());
-
-      // Also update current mood in user document
-      await _firestore
-          .collection('users')
-          .doc(_userId)
-          .set({'currentMood': mood}, SetOptions(merge: true));
-
-      print('DEBUG: Mood updated successfully');
-    } catch (e, stackTrace) {
-      print('ERROR: updateCurrentMood failed - $e');
-      print('STACK TRACE: $stackTrace');
-      rethrow;
-    }
-  }
-
-  Future<List<MoodData>> getMoodHistory(int days) async {
-    try {
-      if (_userId.isEmpty) {
-        print('DEBUG: getMoodHistory - User ID is empty');
-        return [];
-      }
-
-      print('DEBUG: Fetching mood history for last $days days');
-      DateTime cutoff = DateTime.now().subtract(Duration(days: days));
-
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('moods')
-          .where('timestamp', isGreaterThan: cutoff.toIso8601String())
-          // .orderBy('timestamp', descending: true)
-          .get();
-
-      print('DEBUG: Retrieved ${snapshot.docs.length} mood entries');
-      return snapshot.docs.map((doc) => MoodData.fromJson(doc.data())).toList();
-    } catch (e, stackTrace) {
-      print('ERROR: getMoodHistory failed - $e');
-      print('STACK TRACE: $stackTrace');
-      return [];
-    }
-  }
-
-  Future<String> getCurrentMood() async {
-    try {
-      if (_userId.isEmpty) {
-        print('DEBUG: getCurrentMood - User ID is empty');
-        return 'Happy';
-      }
-
-      print('DEBUG: Fetching current mood for user: $_userId');
-      final doc = await _firestore.collection('users').doc(_userId).get();
-      final mood = doc.data()?['currentMood'] ?? 'Happy';
-      print('DEBUG: Current mood: $mood');
-      return mood;
-    } catch (e, stackTrace) {
-      print('ERROR: getCurrentMood failed - $e');
-      print('STACK TRACE: $stackTrace');
-      return 'Happy';
-    }
-  }
-
-  // Settings Management
-  Future<JournalingSettings> getSettings() async {
-    try {
-      if (_userId.isEmpty) {
-        print('DEBUG: getSettings - User ID is empty');
-        return JournalingSettings();
-      }
-
-      print('DEBUG: Fetching journaling settings');
-      final doc = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('settings')
-          .doc('journaling')
-          .get();
-
-      if (doc.exists) {
-        print('DEBUG: Settings loaded successfully');
-        return JournalingSettings.fromJson(doc.data()!);
-      }
-      print('DEBUG: No settings found, using defaults');
-      return JournalingSettings();
-    } catch (e, stackTrace) {
-      print('ERROR: getSettings failed - $e');
-      print('STACK TRACE: $stackTrace');
-      return JournalingSettings();
-    }
-  }
-
-  Future<void> updateSettings(JournalingSettings settings) async {
-    try {
-      if (_userId.isEmpty) {
-        print('ERROR: updateSettings - User not logged in');
-        throw Exception('User not logged in');
-      }
-
-      print('DEBUG: Updating journaling settings');
-      await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('settings')
-          .doc('journaling')
-          .set(settings.toJson());
-
-      print('DEBUG: Settings updated successfully');
-    } catch (e, stackTrace) {
-      print('ERROR: updateSettings failed - $e');
-      print('STACK TRACE: $stackTrace');
-      rethrow;
-    }
-  }
-
-  // AI-Generated Content (Mock)
-  Future<String> generateConversationSummary(String chatContent) async {
-    await Future.delayed(const Duration(seconds: 2)); // Simulate AI processing
-
-    List<String> summaryTemplates = [
-      "Today you expressed feelings about {topic}. Your emotional state seemed {mood}. Consider reflecting on {suggestion}.",
-      "You opened up about {topic} today. This shows {quality}. Your {emotion} is understandable given the circumstances.",
-      "During our conversation, you focused on {topic}. Your {mood} feelings are valid. Perhaps try {suggestion}.",
-    ];
-
-    String template =
-        summaryTemplates[Random().nextInt(summaryTemplates.length)];
-    return template
-        .replaceAll('{topic}', 'your current challenges')
-        .replaceAll('{mood}', 'thoughtful')
-        .replaceAll('{quality}', 'self-awareness')
-        .replaceAll('{emotion}', 'concern')
-        .replaceAll('{suggestion}', 'breaking tasks into smaller steps');
-  }
-
-  Future<List<String>> generateMoodTags(String content) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    // Mock sentiment analysis
-    List<String> possibleMoods = [
-      'Happy',
-      'Sad',
-      'Anxious',
-      'Excited',
-      'Grateful',
-      'Overwhelmed',
-      'Peaceful',
-      'Frustrated'
-    ];
-    return possibleMoods.take(Random().nextInt(3) + 1).toList();
-  }
-
-  Future<WeeklyInsight> generateWeeklyInsight() async {
-    try {
-      if (_userId.isEmpty) {
-        print('DEBUG: generateWeeklyInsight - User ID is empty');
-        return WeeklyInsight(
-          weekStart: DateTime.now(),
-          weekEnd: DateTime.now(),
-          moodPercentages: {},
-          topTopics: [],
-          suggestions: [],
-          affirmation: 'Keep going!',
-          totalEntries: 0,
-        );
-      }
-
-      print('DEBUG: Generating weekly insight');
-      DateTime now = DateTime.now();
-      DateTime weekStart = now.subtract(Duration(days: now.weekday - 1));
-      DateTime weekEnd = weekStart.add(const Duration(days: 6));
-
-      // Get this week's moods
-      final moodsSnapshot = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('moods')
-          .where('timestamp', isGreaterThan: weekStart.toIso8601String())
-          .where('timestamp', isLessThan: weekEnd.toIso8601String())
-          .get();
-
-      // Calculate mood percentages
-      Map<String, int> moodCounts = {};
-      for (var doc in moodsSnapshot.docs) {
-        String mood = doc.data()['mood'];
-        moodCounts[mood] = (moodCounts[mood] ?? 0) + 1;
-      }
-
-      int totalMoods = moodsSnapshot.docs.length;
-      Map<String, double> moodPercentages = {};
-      if (totalMoods > 0) {
-        moodCounts.forEach((mood, count) {
-          moodPercentages[mood] = (count / totalMoods) * 100;
-        });
-      }
-
-      // Get this week's entries
-      final entriesSnapshot = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('journal_entries')
-          .where('timestamp', isGreaterThan: weekStart.toIso8601String())
-          .where('timestamp', isLessThan: weekEnd.toIso8601String())
-          .get();
-
-      // Extract top topics from tags
-      Map<String, int> tagCounts = {};
-      for (var doc in entriesSnapshot.docs) {
-        List<String> tags = List<String>.from(doc.data()['tags'] ?? []);
-        for (var tag in tags) {
-          tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
-        }
-      }
-
-      var sortedEntries = tagCounts.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-      List<String> topics = sortedEntries.take(4).map((e) => e.key).toList();
-
-      // Generate suggestions based on moods
-      List<String> suggestions = _generateSuggestions(moodPercentages);
-
-      // Generate affirmation
-      String affirmation = _generateAffirmation();
-
-      print('DEBUG: Weekly insight generated successfully');
-      return WeeklyInsight(
-        weekStart: weekStart,
-        weekEnd: weekEnd,
-        moodPercentages: moodPercentages,
-        topTopics: topics.isEmpty ? ['No topics yet'] : topics,
-        suggestions: suggestions,
-        affirmation: affirmation,
-        totalEntries: entriesSnapshot.docs.length,
-      );
-    } catch (e, stackTrace) {
-      print('ERROR: generateWeeklyInsight failed - $e');
-      print('STACK TRACE: $stackTrace');
-      return WeeklyInsight(
-        weekStart: DateTime.now(),
-        weekEnd: DateTime.now(),
-        moodPercentages: {},
-        topTopics: ['Error loading topics'],
-        suggestions: ['Keep journaling regularly'],
-        affirmation: 'You are doing great!',
-        totalEntries: 0,
-      );
-    }
-  }
-
-  List<String> _generateSuggestions(Map<String, double> moodPercentages) {
-    List<String> suggestions = [];
-
-    if ((moodPercentages['Anxious'] ?? 0) > 30) {
-      suggestions.add('Consider meditation before stressful events');
-      suggestions.add('Try deep breathing exercises');
-    }
-    if ((moodPercentages['Overwhelmed'] ?? 0) > 20) {
-      suggestions.add('Break tasks into smaller, manageable steps');
-      suggestions.add('Take regular breaks throughout the day');
-    }
-    if ((moodPercentages['Sad'] ?? 0) > 25) {
-      suggestions.add('Reach out to friends or family');
-      suggestions.add('Try activities that bring you joy');
-    }
-
-    if (suggestions.isEmpty) {
-      suggestions = [
-        'Keep journaling regularly to track your progress',
-        'Maintain a healthy sleep schedule',
-        'Stay connected with loved ones',
-      ];
-    }
-
-    return suggestions.take(3).toList();
-  }
-
-  String _generateAffirmation() {
-    List<String> affirmations = [
-      'You are capable of handling whatever challenges come your way.',
-      'Your feelings are valid and it\'s okay to not be okay sometimes.',
-      'You are stronger than you think, braver than you believe.',
-      'Every day is a new opportunity for growth and healing.',
-      'You deserve kindness, especially from yourself.',
-    ];
-    return affirmations[Random().nextInt(affirmations.length)];
-  }
-
-  Future<String> getDailyPrompt() async {
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    List<String> prompts = [
-      'What made you smile today?',
-      'What\'s something you wish more people knew about you?',
-      'Describe a moment when you felt proud of yourself.',
-      'What are you grateful for right now?',
-      'What\'s been on your mind lately?',
-      'How did you grow today?',
-      'What would you tell your younger self?',
-      'What\'s something beautiful you noticed today?',
-    ];
-
-    return prompts[Random().nextInt(prompts.length)];
-  }
-
-  String _getMoodEmoji(String mood) {
-    Map<String, String> moodEmojis = {
-      'Happy': '😊',
-      'Sad': '😢',
-      'Anxious': '😰',
-      'Excited': '🤩',
-      'Grateful': '🙏',
-      'Overwhelmed': '😵',
-      'Peaceful': '😌',
-      'Frustrated': '😤',
-      'Tired': '😴',
-      'Thoughtful': '🤔',
-    };
-    return moodEmojis[mood] ?? '😐';
-  }
-}
-
-// Main Journaling Page
 class JournalingPage extends StatefulWidget {
   const JournalingPage({super.key});
 
@@ -697,1429 +11,1478 @@ class JournalingPage extends StatefulWidget {
 }
 
 class _JournalingPageState extends State<JournalingPage>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final JournalingService _service = JournalingService();
-  List<JournalEntry> _allEntries = [];
-  List<JournalEntry> _passiveEntries = [];
-  List<JournalEntry> _activeEntries = [];
-  JournalingSettings _settings = JournalingSettings();
-  WeeklyInsight? _weeklyInsight;
-  String _dailyPrompt = '';
-  String _currentMood = 'Happy';
-  bool _isLoading = true;
+  static const _primary = Color(0xFF6366F1);
+
+  static const _moods = [
+    ('😊', 'Happy'),
+    ('😰', 'Anxious'),
+    ('😴', 'Tired'),
+    ('🤔', 'Thoughtful'),
+    ('🤩', 'Excited'),
+    ('😌', 'Peaceful'),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    if (mounted) {
-      setState(() => _isLoading = true);
-    }
-
-    try {
-      print('DEBUG: JournalingPage - Loading all journal data');
-      final entries = await _service.getAllEntries();
-      final passiveEntries = await _service.getPassiveEntries();
-      final activeEntries = await _service.getActiveEntries();
-      final settings = await _service.getSettings();
-      final weeklyInsight = await _service.generateWeeklyInsight();
-      final dailyPrompt = await _service.getDailyPrompt();
-      final currentMood = await _service.getCurrentMood();
-
-      setState(() {
-        _allEntries = entries;
-        _passiveEntries = passiveEntries;
-        _activeEntries = activeEntries;
-        _settings = settings;
-        _weeklyInsight = weeklyInsight;
-        _dailyPrompt = dailyPrompt;
-        _currentMood = currentMood;
-        _isLoading = false;
-      });
-      print('DEBUG: JournalingPage - All data loaded successfully');
-    } catch (e, stackTrace) {
-      print('ERROR: JournalingPage - Failed to load data: $e');
-      print('STACK TRACE: $stackTrace');
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-      _showErrorSnackBar('Failed to load data: ${e.toString()}');
-    }
-  }
-
-  Future<void> _updateMood(String mood) async {
-    try {
-      print('DEBUG: JournalingPage - Updating mood to: $mood');
-      await _service.updateCurrentMood(mood, 7.0); // Default intensity
-      setState(() {
-        _currentMood = mood;
-      });
-      _showSuccessSnackBar('Mood updated to $mood');
-      print('DEBUG: JournalingPage - Mood UI updated');
-    } catch (e, stackTrace) {
-      print('ERROR: JournalingPage - Failed to update mood: $e');
-      print('STACK TRACE: $stackTrace');
-      _showErrorSnackBar('Failed to update mood: ${e.toString()}');
-    }
-  }
-
-  Future<void> _toggleSetting(String setting, bool value) async {
-    JournalingSettings newSettings = JournalingSettings(
-      autoConversationSummary: setting == 'autoConversationSummary'
-          ? value
-          : _settings.autoConversationSummary,
-      moodAutoTagging:
-          setting == 'moodAutoTagging' ? value : _settings.moodAutoTagging,
-      triggerBasedEntries: setting == 'triggerBasedEntries'
-          ? value
-          : _settings.triggerBasedEntries,
-      weeklyDigest: setting == 'weeklyDigest' ? value : _settings.weeklyDigest,
-    );
-
-    try {
-      print('DEBUG: JournalingPage - Toggling setting: $setting to $value');
-      await _service.updateSettings(newSettings);
-      setState(() => _settings = newSettings);
-      _showSuccessSnackBar('Settings updated');
-      print('DEBUG: JournalingPage - Setting updated successfully');
-    } catch (e, stackTrace) {
-      print('ERROR: JournalingPage - Failed to update setting: $e');
-      print('STACK TRACE: $stackTrace');
-      _showErrorSnackBar('Failed to update settings: ${e.toString()}');
-    }
-  }
-
-  Future<void> _createEntry(JournalEntryType type) async {
-    String title = _getTitleForType(type);
-    String content = '';
-
-    if (type == JournalEntryType.daily_prompt) {
-      content = _dailyPrompt;
-    }
-
-    _showCreateEntryDialog(type, title, content);
-  }
-
-  Future<void> _saveEntry(JournalEntry entry) async {
-    try {
-      print('DEBUG: JournalingPage - Saving journal entry: ${entry.title}');
-      await _service.createEntry(entry);
-      print('DEBUG: JournalingPage - Reloading data after save');
-      await _loadData(); // Refresh data
-      _showSuccessSnackBar('Entry saved successfully');
-    } catch (e, stackTrace) {
-      print('ERROR: JournalingPage - Failed to save entry: $e');
-      print('STACK TRACE: $stackTrace');
-      _showErrorSnackBar('Failed to save entry: ${e.toString()}');
-    }
-  }
-
-  Future<void> _deleteEntry(String id) async {
-    try {
-      print('DEBUG: JournalingPage - Deleting entry: $id');
-      await _service.deleteEntry(id);
-      print('DEBUG: JournalingPage - Reloading data after delete');
-      await _loadData(); // Refresh data
-      _showSuccessSnackBar('Entry deleted');
-    } catch (e, stackTrace) {
-      print('ERROR: JournalingPage - Failed to delete entry: $e');
-      print('STACK TRACE: $stackTrace');
-      _showErrorSnackBar('Failed to delete entry: ${e.toString()}');
-    }
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.green),
-    );
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
-  }
-
-  String _getTitleForType(JournalEntryType type) {
-    switch (type) {
-      case JournalEntryType.daily_prompt:
-        return 'Daily Reflection';
-      case JournalEntryType.free_write:
-        return 'Free Writing';
-      case JournalEntryType.voice_note:
-        return 'Voice Note';
-      case JournalEntryType.doodle:
-        return 'Doodle Entry';
-      case JournalEntryType.gratitude:
-        return 'Gratitude Journal';
-      default:
-        return 'Journal Entry';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Journal',
-          style: TextStyle(
-            color: Colors.black87,
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.5,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.refresh, color: Colors.grey[700], size: 20),
-            ),
-            onPressed: _loadData,
-          ),
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.settings_outlined,
-                  color: Colors.grey[700], size: 20),
-            ),
-            onPressed: () => _showSettingsDialog(),
-          ),
-          const SizedBox(width: 8),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: const Color(0xFF6366F1),
-          unselectedLabelColor: Colors.grey[500],
-          indicatorColor: const Color(0xFF6366F1),
-          indicatorWeight: 3,
-          labelStyle:
-              const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-          unselectedLabelStyle:
-              const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-          tabs: const [
-            Tab(text: 'Timeline'),
-            Tab(text: 'Auto Reflections'),
-            Tab(text: 'Active Journal'),
-            Tab(text: 'Insights'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildTimelineTab(),
-          _buildAutoReflectionsTab(),
-          _buildActiveJournalTab(),
-          _buildInsightsTab(),
-        ],
-      ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
-            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF6366F1).withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: () => _showCreateEntryDialog(
-              JournalEntryType.free_write, 'New Entry', ''),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: const Icon(Icons.add, color: Colors.white, size: 28),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTimelineTab() {
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Mood Overview Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF6366F1).withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Your Mood Today',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      _buildMoodIcon('😊', 'Happy', _currentMood == 'Happy'),
-                      const SizedBox(width: 16),
-                      _buildMoodIcon(
-                          '😰', 'Anxious', _currentMood == 'Anxious'),
-                      const SizedBox(width: 16),
-                      _buildMoodIcon('😴', 'Tired', _currentMood == 'Tired'),
-                      const SizedBox(width: 16),
-                      _buildMoodIcon(
-                          '🤔', 'Thoughtful', _currentMood == 'Thoughtful'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Timeline Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Recent Entries',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: const Text('View All'),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Timeline Entries
-            ..._allEntries
-                .take(10)
-                .map((entry) => _buildTimelineEntry(entry))
-                .toList(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAutoReflectionsTab() {
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Controls Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Auto-Reflection Settings',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSettingToggle(
-                      'Generate conversation summaries',
-                      _settings.autoConversationSummary,
-                      'autoConversationSummary'),
-                  _buildSettingToggle('Mood auto-tagging',
-                      _settings.moodAutoTagging, 'moodAutoTagging'),
-                  _buildSettingToggle('Trigger-based entries',
-                      _settings.triggerBasedEntries, 'triggerBasedEntries'),
-                  _buildSettingToggle(
-                      'Weekly digest', _settings.weeklyDigest, 'weeklyDigest'),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            const Text(
-              'Reflections from Chat',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Auto-generated entries
-            ..._passiveEntries
-                .map((entry) => _buildAutoReflectionCard(entry))
-                .toList(),
-
-            if (_passiveEntries.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Text(
-                    'No auto-reflections yet.\nStart chatting to generate insights!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActiveJournalTab() {
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Quick Actions
-            Row(
-              children: [
-                Expanded(
-                  child: _buildQuickActionCard(
-                    'Daily Prompt',
-                    _dailyPrompt.isNotEmpty
-                        ? _dailyPrompt
-                        : 'Loading prompt...',
-                    Icons.lightbulb_outline,
-                    Colors.yellow[600]!,
-                    JournalEntryType.daily_prompt,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQuickActionCard(
-                    'Free Write',
-                    'Express your thoughts freely',
-                    Icons.edit_outlined,
-                    Colors.blue[600]!,
-                    JournalEntryType.free_write,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _buildQuickActionCard(
-                    'Voice Note',
-                    'Speak your mind',
-                    Icons.mic_outlined,
-                    Colors.green[600]!,
-                    JournalEntryType.voice_note,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQuickActionCard(
-                    'Doodle',
-                    'Draw your feelings',
-                    Icons.brush_outlined,
-                    Colors.purple[600]!,
-                    JournalEntryType.doodle,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // Recent Active Entries
-            const Text(
-              'Your Entries',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            ..._activeEntries
-                .map((entry) => _buildActiveEntryCard(entry))
-                .toList(),
-
-            if (_activeEntries.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Text(
-                    'No journal entries yet.\nTap the + button to create your first entry!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInsightsTab() {
-    if (_weeklyInsight == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Weekly Digest Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Weekly Digest',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${_formatDate(_weeklyInsight!.weekStart)} - ${_formatDate(_weeklyInsight!.weekEnd)}',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildWeeklyStat(
-                          '${_weeklyInsight!.totalEntries}', 'Journal Entries'),
-                      _buildWeeklyStat(
-                          '${_weeklyInsight!.moodPercentages['Happy']?.round() ?? 0}%',
-                          'Happy'),
-                      _buildWeeklyStat(
-                          '${_weeklyInsight!.moodPercentages['Anxious']?.round() ?? 0}%',
-                          'Anxious'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Mood Patterns
-            _buildInsightCard(
-              'Mood Patterns',
-              'You tend to feel more anxious on weekdays, especially Mondays and Wednesdays. Your mood improves significantly on weekends.',
-              Icons.trending_up,
-              const Color(0xFF6366F1),
-            ),
-
-            // Top Topics
-            _buildInsightCard(
-              'Most Discussed Topics',
-              _weeklyInsight!.topTopics
-                  .asMap()
-                  .entries
-                  .map((entry) => '${entry.key + 1}. ${entry.value}')
-                  .join('\n'),
-              Icons.topic_outlined,
-              const Color(0xFF6366F1),
-            ),
-
-            // Suggestions
-            _buildInsightCard(
-              'Personalized Suggestions',
-              _weeklyInsight!.suggestions.join('\n• '),
-              Icons.lightbulb_outlined,
-              const Color(0xFF6366F1),
-            ),
-
-            // Affirmations
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F9FA),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.pink[200]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.favorite, color: Colors.pink[600]),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Daily Affirmation',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.pink[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '"${_weeklyInsight!.affirmation}"',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontStyle: FontStyle.italic,
-                      color: Colors.pink[700],
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMoodIcon(String emoji, String label, bool isSelected) {
-    return GestureDetector(
-      onTap: () => _updateMood(label),
-      child: Column(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Colors.white.withOpacity(0.2)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: Text(emoji, style: const TextStyle(fontSize: 20)),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimelineEntry(JournalEntry entry) {
-    Color bgColor = entry.isPassive ? Colors.orange[100]! : Colors.green[100]!;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: bgColor, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: bgColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      entry.title,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  if (entry.isPassive) ...[
-                    const SizedBox(width: 8),
-                    Icon(Icons.auto_awesome, size: 16, color: Colors.blue[600]),
-                  ],
-                ],
-              ),
-              Text(
-                _formatTimestamp(entry.timestamp),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            entry.content,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black87,
-              height: 1.4,
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: entry.moods
-                    .map(
-                      (mood) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Text(mood, style: const TextStyle(fontSize: 16)),
-                      ),
-                    )
-                    .toList(),
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    onPressed: () => _editEntry(entry),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 16),
-                    onPressed: () => _confirmDeleteEntry(entry.id),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingToggle(String title, bool value, String settingKey) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 14),
-          ),
-          Switch(
-            value: value,
-            onChanged: (newValue) => _toggleSetting(settingKey, newValue),
-            activeColor: Colors.blue[600],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAutoReflectionCard(JournalEntry entry) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                entry.title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                _formatTimestamp(entry.timestamp),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            entry.content,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black87,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            children: entry.tags
-                .map(
-                  (tag) => Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      tag,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue[700],
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: () => _bridgeToActiveJournal(entry),
-            child: const Text('Want to reflect more on this?'),
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActionCard(String title, String subtitle, IconData icon,
-      Color color, JournalEntryType type) {
-    return GestureDetector(
-      onTap: () => _createEntry(type),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActiveEntryCard(JournalEntry entry) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(_getIconForType(entry.type),
-                  size: 16, color: Colors.blue[600]),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  entry.title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Text(
-                _formatTimestamp(entry.timestamp),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            entry.content,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black87,
-              height: 1.4,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Wrap(
-                spacing: 8,
-                children: entry.tags
-                    .map(
-                      (tag) => Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.green[100],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          tag,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.green[700],
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    onPressed: () => _editEntry(entry),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 16),
-                    onPressed: () => _confirmDeleteEntry(entry.id),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWeeklyStat(String value, String label) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInsightCard(
-      String title, String content, IconData icon, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            content,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black87,
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Dialog Methods
-  void _showCreateEntryDialog(
-      JournalEntryType type, String initialTitle, String initialContent) {
-    final titleController = TextEditingController(text: initialTitle);
-    final contentController = TextEditingController(text: initialContent);
-    List<String> selectedTags = [];
-    List<String> selectedMoods = [];
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Create Journal Entry'),
-          content: Container(
-            width: double.maxFinite,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Title',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: contentController,
-                    decoration: const InputDecoration(
-                      labelText: 'Content',
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                    ),
-                    maxLines: 5,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTagSelector(selectedTags, setDialogState),
-                  const SizedBox(height: 16),
-                  _buildMoodSelector(selectedMoods, setDialogState),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (titleController.text.isNotEmpty &&
-                    contentController.text.isNotEmpty) {
-                  JournalEntry newEntry = JournalEntry(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    title: titleController.text,
-                    content: contentController.text,
-                    timestamp: DateTime.now(),
-                    tags: selectedTags,
-                    moods: selectedMoods,
-                    type: type,
-                    isPassive: false,
-                  );
-                  Navigator.of(context).pop();
-                  _saveEntry(newEntry);
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Journaling Settings'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildSettingToggle('Auto conversation summaries',
-                _settings.autoConversationSummary, 'autoConversationSummary'),
-            _buildSettingToggle('Mood auto-tagging', _settings.moodAutoTagging,
-                'moodAutoTagging'),
-            _buildSettingToggle('Trigger-based entries',
-                _settings.triggerBasedEntries, 'triggerBasedEntries'),
-            _buildSettingToggle(
-                'Weekly digest', _settings.weeklyDigest, 'weeklyDigest'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTagSelector(List<String> selectedTags, Function setDialogState) {
-    List<String> availableTags = [
-      'academic',
-      'stress',
-      'family',
-      'grateful',
-      'peaceful',
-      'work',
-      'health',
-      'social'
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Tags:', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: availableTags
-              .map((tag) => FilterChip(
-                    label: Text(tag),
-                    selected: selectedTags.contains(tag),
-                    onSelected: (selected) {
-                      setDialogState(() {
-                        if (selected) {
-                          selectedTags.add(tag);
-                        } else {
-                          selectedTags.remove(tag);
-                        }
-                      });
-                    },
-                  ))
-              .toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMoodSelector(
-      List<String> selectedMoods, Function setDialogState) {
-    List<Map<String, String>> availableMoods = [
-      {'emoji': '😊', 'name': 'Happy'},
-      {'emoji': '😢', 'name': 'Sad'},
-      {'emoji': '😰', 'name': 'Anxious'},
-      {'emoji': '🤩', 'name': 'Excited'},
-      {'emoji': '🙏', 'name': 'Grateful'},
-      {'emoji': '😵', 'name': 'Overwhelmed'},
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Moods:', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: availableMoods
-              .map((mood) => FilterChip(
-                    label: Text('${mood['emoji']} ${mood['name']}'),
-                    selected: selectedMoods.contains(mood['emoji']),
-                    onSelected: (selected) {
-                      setDialogState(() {
-                        if (selected) {
-                          selectedMoods.add(mood['emoji']!);
-                        } else {
-                          selectedMoods.remove(mood['emoji']);
-                        }
-                      });
-                    },
-                  ))
-              .toList(),
-        ),
-      ],
-    );
-  }
-
-  // Helper Methods
-  void _editEntry(JournalEntry entry) {
-    _showCreateEntryDialog(entry.type, entry.title, entry.content);
-  }
-
-  void _confirmDeleteEntry(String id) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Entry'),
-        content: const Text(
-            'Are you sure you want to delete this entry? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _deleteEntry(id);
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _bridgeToActiveJournal(JournalEntry passiveEntry) {
-    _tabController.animateTo(2); // Switch to Active Journal tab
-    Future.delayed(const Duration(milliseconds: 300), () {
-      _showCreateEntryDialog(
-        JournalEntryType.free_write,
-        'Reflecting on: ${passiveEntry.title}',
-        'Based on the reflection: "${passiveEntry.content}"\n\nYour thoughts:\n',
-      );
+    _tabController = TabController(length: 3, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<JournalingProvider>().loadAll();
     });
-  }
-
-  IconData _getIconForType(JournalEntryType type) {
-    switch (type) {
-      case JournalEntryType.daily_prompt:
-        return Icons.lightbulb_outline;
-      case JournalEntryType.free_write:
-        return Icons.edit_outlined;
-      case JournalEntryType.voice_note:
-        return Icons.mic_outlined;
-      case JournalEntryType.doodle:
-        return Icons.brush_outlined;
-      case JournalEntryType.gratitude:
-        return Icons.favorite_outline;
-      default:
-        return Icons.book_outlined;
-    }
-  }
-
-  String _formatTimestamp(DateTime timestamp) {
-    DateTime now = DateTime.now();
-    Duration difference = now.difference(timestamp);
-
-    if (difference.inDays == 0) {
-      if (difference.inHours == 0) {
-        return '${difference.inMinutes} mins ago';
-      }
-      return '${difference.inHours} hours ago';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    } else {
-      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    List<String> months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ];
-    return '${months[date.month - 1]} ${date.day}';
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  // ─────────────────────────────────────────
+  //  Build
+  // ─────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F7FF),
+      body: NestedScrollView(
+        headerSliverBuilder: (ctx, _) => [_buildSliverAppBar()],
+        body: Consumer<JournalingProvider>(
+          builder: (context, provider, _) {
+            if (provider.isLoading) {
+              return const Center(
+                  child: CircularProgressIndicator(color: _primary));
+            }
+            return TabBarView(
+              controller: _tabController,
+              children: [
+                _buildTimelineTab(provider),
+                _buildWriteTab(provider),
+                _buildInsightsTab(provider),
+              ],
+            );
+          },
+        ),
+      ),
+      floatingActionButton: _buildFab(),
+    );
+  }
+
+  // ─────────────────────────────────────────
+  //  App Bar
+  // ─────────────────────────────────────────
+
+  Widget _buildSliverAppBar() {
+    return SliverToBoxAdapter(
+      child: Consumer<JournalingProvider>(
+        builder: (ctx, provider, _) => Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header row
+                Padding(
+                  padding:
+                      const EdgeInsets.fromLTRB(24, 16, 16, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'My Journal',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              _todayLabel(),
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => provider.loadAll(),
+                        icon: const Icon(Icons.refresh_rounded,
+                            color: Colors.white, size: 22),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Mood row
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildMoodRow(provider),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Tab bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: TabBar(
+                      controller: _tabController,
+                      indicator: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      dividerColor: Colors.transparent,
+                      labelPadding: EdgeInsets.zero,
+                      labelStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 13, fontWeight: FontWeight.w700),
+                      unselectedLabelStyle: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w500),
+                      labelColor: _primary,
+                      unselectedLabelColor:
+                          Colors.white.withValues(alpha: 0.8),
+                      tabs: const [
+                        Tab(text: 'Timeline'),
+                        Tab(text: 'Write'),
+                        Tab(text: 'Insights'),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoodRow(JournalingProvider provider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'How are you feeling?',
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: Colors.white.withValues(alpha: 0.85),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: _moods.map((m) {
+              final isSelected = provider.currentMood == m.$2;
+              return GestureDetector(
+                onTap: () => provider.updateMood(m.$2),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.only(right: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: isSelected
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.35),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(m.$1,
+                          style: const TextStyle(fontSize: 16)),
+                      const SizedBox(width: 5),
+                      Text(
+                        m.$2,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? _primary : Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────
+  //  Timeline Tab
+  // ─────────────────────────────────────────
+
+  Widget _buildTimelineTab(JournalingProvider provider) {
+    final entries = provider.allEntries;
+
+    return RefreshIndicator(
+      onRefresh: provider.loadAll,
+      color: _primary,
+      child: entries.isEmpty
+          ? _emptyState(
+              icon: Icons.auto_stories_rounded,
+              title: 'Nothing here yet',
+              subtitle:
+                  'Your journal entries will appear here.\nTap the ✏️ button to start writing.',
+            )
+          : ListView.builder(
+              padding:
+                  const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              itemCount: entries.length,
+              itemBuilder: (ctx, i) =>
+                  _EntryCard(
+                    entry: entries[i],
+                    onDelete: () =>
+                        _confirmDelete(ctx, provider, entries[i].id),
+                    onEdit: () =>
+                        _openEditor(ctx, provider, entry: entries[i]),
+                  ),
+            ),
+    );
+  }
+
+  // ─────────────────────────────────────────
+  //  Write Tab
+  // ─────────────────────────────────────────
+
+  Widget _buildWriteTab(JournalingProvider provider) {
+    return RefreshIndicator(
+      onRefresh: provider.loadAll,
+      color: _primary,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        children: [
+          // Daily Prompt card
+          if (provider.dailyPrompt.isNotEmpty) ...[
+            _PromptCard(
+              prompt: provider.dailyPrompt,
+              onTap: () => _openEditor(
+                context,
+                provider,
+                prefillTitle: 'Daily Reflection',
+                prefillContent: '',
+                type: JournalEntryType.daily_prompt,
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Quick action grid
+          Text(
+            'What would you like to do?',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1E1B4B),
+            ),
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.35,
+            children: [
+              _QuickActionTile(
+                emoji: '✍️',
+                label: 'Free Write',
+                description: 'Express freely',
+                color: const Color(0xFF6366F1),
+                onTap: () => _openEditor(
+                  context,
+                  provider,
+                  prefillTitle: 'Free Writing',
+                  type: JournalEntryType.free_write,
+                ),
+              ),
+              _QuickActionTile(
+                emoji: '🙏',
+                label: 'Gratitude',
+                description: '3 things I\'m thankful for',
+                color: const Color(0xFF10B981),
+                onTap: () => _openEditor(
+                  context,
+                  provider,
+                  prefillTitle: 'Gratitude Journal',
+                  prefillContent:
+                      '1. \n2. \n3. ',
+                  type: JournalEntryType.gratitude,
+                ),
+              ),
+              _QuickActionTile(
+                emoji: '🎤',
+                label: 'Voice Note',
+                description: 'Speak your mind',
+                color: const Color(0xFFF59E0B),
+                onTap: () => _openEditor(
+                  context,
+                  provider,
+                  prefillTitle: 'Voice Note',
+                  type: JournalEntryType.voice_note,
+                ),
+              ),
+              _QuickActionTile(
+                emoji: '🎨',
+                label: 'Doodle',
+                description: 'Draw your feelings',
+                color: const Color(0xFFF472B6),
+                onTap: () => _openEditor(
+                  context,
+                  provider,
+                  prefillTitle: 'Doodle Entry',
+                  type: JournalEntryType.doodle,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Recent active entries
+          if (provider.activeEntries.isNotEmpty) ...[
+            Text(
+              'Your Entries',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1E1B4B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...provider.activeEntries.take(5).map(
+                  (e) => _EntryCard(
+                    entry: e,
+                    onDelete: () => _confirmDelete(context, provider, e.id),
+                    onEdit: () =>
+                        _openEditor(context, provider, entry: e),
+                  ),
+                ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────
+  //  Insights Tab
+  // ─────────────────────────────────────────
+
+  Widget _buildInsightsTab(JournalingProvider provider) {
+    final insight = provider.weeklyInsight;
+    if (insight == null) {
+      return const Center(
+          child: CircularProgressIndicator(color: _primary));
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        // Weekly card
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: _primary.withValues(alpha: 0.3),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              )
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.insights_rounded,
+                      color: Colors.white, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    'This Week',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${_fmtDate(insight.weekStart)} – ${_fmtDate(insight.weekEnd)}',
+                style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.7)),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _weekStat('${insight.totalEntries}', 'Entries'),
+                  _weekStat(
+                      '${insight.moodPercentages['Happy']?.round() ?? 0}%',
+                      'Happy'),
+                  _weekStat(
+                      '${insight.moodPercentages['Anxious']?.round() ?? 0}%',
+                      'Anxious'),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Affirmation
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF0F6),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('💜', style: TextStyle(fontSize: 24)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '"${insight.affirmation}"',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontStyle: FontStyle.italic,
+                    color: const Color(0xFF9D174D),
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Suggestions
+        _insightSection(
+          '💡 Personalized Tips',
+          insight.suggestions
+              .map((s) => '• $s')
+              .join('\n'),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Top topics
+        if (insight.topTopics.isNotEmpty)
+          _insightSection(
+            '🔖 Top Topics',
+            insight.topTopics
+                .asMap()
+                .entries
+                .map((e) => '${e.key + 1}. ${e.value}')
+                .join('\n'),
+          ),
+
+        const SizedBox(height: 20),
+
+        // Auto-reflection settings
+        Text(
+          'Auto-Reflection',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF1E1B4B),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4)),
+            ],
+          ),
+          child: Consumer<JournalingProvider>(
+            builder: (ctx, prov, _) => Column(
+              children: [
+                _settingTile(
+                  'Conversation Summaries',
+                  'Auto-save chat summaries',
+                  prov.settings.autoConversationSummary,
+                  (v) => prov.toggleSetting('autoConversationSummary', v),
+                ),
+                _settingTile(
+                  'Mood Auto-Tagging',
+                  'Detect mood from your writing',
+                  prov.settings.moodAutoTagging,
+                  (v) => prov.toggleSetting('moodAutoTagging', v),
+                ),
+                _settingTile(
+                  'Trigger-Based Entries',
+                  'Auto-create entries from events',
+                  prov.settings.triggerBasedEntries,
+                  (v) => prov.toggleSetting('triggerBasedEntries', v),
+                ),
+                _settingTile(
+                  'Weekly Digest',
+                  'Get a summary every week',
+                  prov.settings.weeklyDigest,
+                  (v) => prov.toggleSetting('weeklyDigest', v),
+                  isLast: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────
+  //  Helpers
+  // ─────────────────────────────────────────
+
+  Widget _buildFab() {
+    return Consumer<JournalingProvider>(
+      builder: (ctx, provider, _) => Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: _primary.withValues(alpha: 0.4),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: () => _openEditor(ctx, provider),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          icon: const Icon(Icons.edit_rounded, color: Colors.white),
+          label: Text(
+            'New Entry',
+            style: GoogleFonts.plusJakartaSans(
+                color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: _primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 40, color: _primary),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              title,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1E1B4B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Colors.grey[500],
+                  height: 1.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _weekStat(String value, String label) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Colors.white.withValues(alpha: 0.75)),
+        ),
+      ],
+    );
+  }
+
+  Widget _insightSection(String title, String body) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1E1B4B),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body,
+            style: GoogleFonts.inter(
+                fontSize: 14, color: Colors.grey[600], height: 1.6),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingTile(
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> onChanged, {
+    bool isLast = false,
+  }) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E1B4B),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.inter(
+                          fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: value,
+                onChanged: onChanged,
+                activeColor: _primary,
+              ),
+            ],
+          ),
+        ),
+        if (!isLast)
+          Divider(height: 1, indent: 16, endIndent: 16, color: Colors.grey[100]),
+      ],
+    );
+  }
+
+  // Dialogs
+  void _openEditor(
+    BuildContext context,
+    JournalingProvider provider, {
+    JournalEntry? entry,
+    String prefillTitle = '',
+    String prefillContent = '',
+    JournalEntryType type = JournalEntryType.free_write,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _JournalEditorSheet(
+        provider: provider,
+        existingEntry: entry,
+        prefillTitle: entry?.title ?? prefillTitle,
+        prefillContent: entry?.content ?? prefillContent,
+        entryType: entry?.type ?? type,
+      ),
+    );
+  }
+
+  void _confirmDelete(
+    BuildContext context,
+    JournalingProvider provider,
+    String id,
+  ) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Delete Entry?',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+        content: Text('This cannot be undone.',
+            style: GoogleFonts.inter(color: Colors.grey[600])),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel',
+                style: GoogleFonts.inter(color: Colors.grey[600])),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              provider.deleteEntry(id);
+            },
+            child: Text('Delete',
+                style:
+                    GoogleFonts.inter(color: const Color(0xFFEF4444))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Utility
+  String _todayLabel() {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    final now = DateTime.now();
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}';
+  }
+
+  String _fmtDate(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[d.month - 1]} ${d.day}';
+  }
+}
+
+// ─────────────────────────────────────────
+//  Entry Card
+// ─────────────────────────────────────────
+
+class _EntryCard extends StatelessWidget {
+  final JournalEntry entry;
+  final VoidCallback onDelete;
+  final VoidCallback onEdit;
+
+  const _EntryCard({
+    required this.entry,
+    required this.onDelete,
+    required this.onEdit,
+  });
+
+  static const _typeColors = {
+    JournalEntryType.daily_prompt: Color(0xFF6366F1),
+    JournalEntryType.free_write: Color(0xFF0EA5E9),
+    JournalEntryType.gratitude: Color(0xFF10B981),
+    JournalEntryType.voice_note: Color(0xFFF59E0B),
+    JournalEntryType.doodle: Color(0xFFF472B6),
+    JournalEntryType.auto_reflection: Color(0xFF8B5CF6),
+    JournalEntryType.conversation_summary: Color(0xFF8B5CF6),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        _typeColors[entry.type] ?? const Color(0xFF6366F1);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: onEdit,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  // Type badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      entry.title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                  if (entry.isPassive) ...[
+                    const SizedBox(width: 6),
+                    Icon(Icons.auto_awesome_rounded,
+                        size: 14, color: Colors.grey[400]),
+                  ],
+                  const Spacer(),
+                  Text(
+                    _fmtTimestamp(entry.timestamp),
+                    style: GoogleFonts.inter(
+                        fontSize: 11, color: Colors.grey[400]),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                entry.content,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF374151),
+                  height: 1.55,
+                ),
+              ),
+              if (entry.moods.isNotEmpty || entry.tags.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    ...entry.moods.take(3).map((m) => Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Text(m,
+                              style: const TextStyle(fontSize: 15)),
+                        )),
+                    const Spacer(),
+                    ...entry.tags.take(2).map((tag) => Container(
+                          margin: const EdgeInsets.only(left: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '#$tag',
+                            style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: Colors.grey[500],
+                                fontWeight: FontWeight.w600),
+                          ),
+                        )),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  GestureDetector(
+                    onTap: onEdit,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.edit_outlined,
+                          size: 18, color: Colors.grey[400]),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: onDelete,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.delete_outline_rounded,
+                          size: 18, color: Colors.grey[400]),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _fmtTimestamp(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[dt.month - 1]} ${dt.day}';
+  }
+}
+
+// ─────────────────────────────────────────
+//  Daily Prompt Card
+// ─────────────────────────────────────────
+
+class _PromptCard extends StatelessWidget {
+  final String prompt;
+  final VoidCallback onTap;
+
+  const _PromptCard({required this.prompt, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFF7ED), Color(0xFFFEF3C7)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+              width: 1.5),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('✨', style: TextStyle(fontSize: 28)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Today's Prompt",
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFB45309),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    prompt,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF92400E),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tap to write →',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: const Color(0xFFB45309),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────
+//  Quick Action Tile
+// ─────────────────────────────────────────
+
+class _QuickActionTile extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final String description;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _QuickActionTile({
+    required this.emoji,
+    required this.label,
+    required this.description,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Text(emoji,
+                    style: const TextStyle(fontSize: 20)),
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1E1B4B),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────
+//  Journal Editor Bottom Sheet
+// ─────────────────────────────────────────
+
+class _JournalEditorSheet extends StatefulWidget {
+  final JournalingProvider provider;
+  final JournalEntry? existingEntry;
+  final String prefillTitle;
+  final String prefillContent;
+  final JournalEntryType entryType;
+
+  const _JournalEditorSheet({
+    required this.provider,
+    this.existingEntry,
+    required this.prefillTitle,
+    required this.prefillContent,
+    required this.entryType,
+  });
+
+  @override
+  State<_JournalEditorSheet> createState() => _JournalEditorSheetState();
+}
+
+class _JournalEditorSheetState extends State<_JournalEditorSheet> {
+  late final TextEditingController _titleCtrl;
+  late final TextEditingController _contentCtrl;
+  late final TextEditingController _tagCtrl;
+  late final List<String> _tags;
+  bool _saving = false;
+
+  static const _primary = Color(0xFF6366F1);
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl =
+        TextEditingController(text: widget.prefillTitle);
+    _contentCtrl =
+        TextEditingController(text: widget.prefillContent);
+    _tagCtrl = TextEditingController();
+    _tags = List<String>.from(widget.existingEntry?.tags ?? []);
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _contentCtrl.dispose();
+    _tagCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_contentCtrl.text.trim().isEmpty) return;
+    setState(() => _saving = true);
+
+    try {
+      final entry = JournalEntry(
+        id: widget.existingEntry?.id ?? '',
+        title: _titleCtrl.text.trim().isEmpty
+            ? widget.provider.labelForType(widget.entryType)
+            : _titleCtrl.text.trim(),
+        content: _contentCtrl.text.trim(),
+        timestamp: widget.existingEntry?.timestamp ?? DateTime.now(),
+        tags: _tags,
+        moods: widget.existingEntry?.moods ?? [],
+        type: widget.entryType,
+        isPassive: widget.existingEntry?.isPassive ?? false,
+      );
+
+      if (widget.existingEntry != null) {
+        await widget.provider.updateEntry(entry);
+      } else {
+        await widget.provider.createEntry(entry);
+      }
+
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.88,
+      minChildSize: 0.5,
+      maxChildSize: 0.97,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+
+            // Top bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.existingEntry != null
+                          ? 'Edit Entry'
+                          : 'New Entry',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF1E1B4B),
+                      ),
+                    ),
+                  ),
+                  if (_saving) ...[
+                    const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: _primary)),
+                  ] else ...[
+                    GestureDetector(
+                      onTap: _save,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 9),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFF6366F1),
+                              Color(0xFF8B5CF6)
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          'Save',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+            Divider(height: 1, color: Colors.grey[100]),
+
+            // Content
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    TextField(
+                      controller: _titleCtrl,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1E1B4B),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Title (optional)',
+                        hintStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey[300],
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                        isDense: true,
+                        filled: false,
+                      ),
+                      textCapitalization: TextCapitalization.sentences,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Content
+                    TextField(
+                      controller: _contentCtrl,
+                      maxLines: null,
+                      minLines: 8,
+                      autofocus: true,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        color: const Color(0xFF374151),
+                        height: 1.65,
+                      ),
+                      decoration: InputDecoration(
+                        hintText:
+                            'What\'s on your mind? Start writing...',
+                        hintStyle: GoogleFonts.inter(
+                          fontSize: 15,
+                          color: Colors.grey[400],
+                          height: 1.65,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                        isDense: true,
+                        filled: false,
+                      ),
+                      textCapitalization: TextCapitalization.sentences,
+                    ),
+
+                    const SizedBox(height: 20),
+                    Divider(color: Colors.grey[100]),
+                    const SizedBox(height: 12),
+
+                    // Tags
+                    Text(
+                      'Tags',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[500],
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        ..._tags.map((tag) => GestureDetector(
+                              onTap: () =>
+                                  setState(() => _tags.remove(tag)),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: _primary.withValues(alpha: 0.1),
+                                  borderRadius:
+                                      BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text('#$tag',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          color: _primary,
+                                          fontWeight: FontWeight.w600,
+                                        )),
+                                    const SizedBox(width: 4),
+                                    Icon(Icons.close_rounded,
+                                        size: 12, color: _primary),
+                                  ],
+                                ),
+                              ),
+                            )),
+                        SizedBox(
+                          width: 120,
+                          child: TextField(
+                            controller: _tagCtrl,
+                            style: GoogleFonts.inter(
+                                fontSize: 13, color: Colors.grey[700]),
+                            decoration: InputDecoration(
+                              hintText: '+ add tag',
+                              hintStyle: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: Colors.grey[400]),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              isDense: true,
+                              filled: false,
+                            ),
+                            onSubmitted: (v) {
+                              final trimmed = v.trim();
+                              if (trimmed.isNotEmpty &&
+                                  !_tags.contains(trimmed)) {
+                                setState(() => _tags.add(trimmed));
+                              }
+                              _tagCtrl.clear();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

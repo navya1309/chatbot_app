@@ -1,249 +1,336 @@
-import 'package:chatbot_app_1/pages/auth/provider/auth_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'provider/profile_provider.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
+  static const _primary = Color(0xFF6366F1);
+
   @override
   Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthenticationProvider>();
-    final user = authProvider.user;
+    return Consumer<ProfileProvider>(
+      builder: (context, provider, _) {
+        final user = provider.currentUser;
 
-    if (user == null) {
-      return const Scaffold(
-        body: Center(
-          child: Text('Please sign in to view your profile.'),
+        // User is null → signed out; blank screen while navigation resolves
+        if (user == null) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFF8F7FF),
+            body: SizedBox.shrink(),
+          );
+        }
+
+        final profileStream = provider.profileStream;
+        if (profileStream == null) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFF8F7FF),
+            body: Center(
+                child: CircularProgressIndicator(color: _primary)),
+          );
+        }
+
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: profileStream,
+          builder: (context, snapshot) {
+            String fullName = 'Friend';
+            String email = user.email ?? 'Not set';
+            String? memberSince;
+
+            if (snapshot.hasData && snapshot.data!.exists) {
+              final data = snapshot.data!.data()!;
+              fullName = (data['fullName'] as String?)?.trim().isNotEmpty == true
+                  ? data['fullName'] as String
+                  : user.displayName ?? 'Friend';
+              email = (data['email'] as String?) ?? user.email ?? 'Not set';
+              final createdAt = data['createdAt'];
+              if (createdAt is Timestamp) {
+                memberSince = _formatDate(createdAt.toDate());
+              }
+            }
+
+            final initials = fullName.isNotEmpty ? fullName[0].toUpperCase() : 'P';
+
+            return Scaffold(
+              backgroundColor: const Color(0xFFF8F7FF),
+              body: CustomScrollView(
+                slivers: [
+                  // Gradient header
+                  SliverToBoxAdapter(
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(24, 72, 24, 36),
+                      child: Column(
+                        children: [
+                          // Avatar
+                          Container(
+                            width: 88,
+                            height: 88,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.25),
+                              border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.6),
+                                  width: 3),
+                            ),
+                            child: Center(
+                              child: Text(
+                                initials,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 34,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            fullName,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            email,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.white.withValues(alpha: 0.82),
+                            ),
+                          ),
+                          if (memberSince != null) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'Member since $memberSince',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Content
+                  SliverPadding(
+                    padding: const EdgeInsets.all(20),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        _sectionTitle('How to Use PillowTalk'),
+                        const SizedBox(height: 10),
+                        _card(children: const [
+                          _GuideRow(
+                            icon: Icons.chat_bubble_rounded,
+                            iconColor: Color(0xFF6366F1),
+                            title: 'Chat',
+                            description:
+                                'Talk, reflect, and get supportive guidance anytime.',
+                          ),
+                          _GuideRow(
+                            icon: Icons.book_rounded,
+                            iconColor: Color(0xFF10B981),
+                            title: 'Journal',
+                            description:
+                                'Log daily thoughts, moods, and insights.',
+                          ),
+                          _GuideRow(
+                            icon: Icons.favorite_rounded,
+                            iconColor: Color(0xFFF472B6),
+                            title: 'Wellness',
+                            description:
+                                'Track your cycle and explore self-care.',
+                          ),
+                          _GuideRow(
+                            icon: Icons.lightbulb_rounded,
+                            iconColor: Color(0xFFF59E0B),
+                            title: 'Learn',
+                            description:
+                                'Browse myths and fun facts to stay informed.',
+                          ),
+                        ]),
+
+                        const SizedBox(height: 20),
+                        _sectionTitle('Account'),
+                        const SizedBox(height: 10),
+                        _card(children: [
+                          _infoRow('User ID', user.uid),
+                          _infoRow('Email', email),
+                        ]),
+
+                        const SizedBox(height: 20),
+                        _sectionTitle('Actions'),
+                        const SizedBox(height: 10),
+
+                        // Log Out
+                        GestureDetector(
+                          onTap: () => provider.signOut(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.06),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFEF2F2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(Icons.logout_rounded,
+                                      color: Color(0xFFEF4444), size: 20),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Log Out',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: const Color(0xFFEF4444),
+                                        ),
+                                      ),
+                                      Text(
+                                        'Sign out of your account',
+                                        style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            color: Colors.grey[500]),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.arrow_forward_ios_rounded,
+                                    size: 14, color: Color(0xFFEF4444)),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  static Widget _sectionTitle(String title) => Padding(
+        padding: const EdgeInsets.only(bottom: 0),
+        child: Text(
+          title,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF1E1B4B),
+          ),
         ),
       );
-    }
 
-    final userDocStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-      ),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: userDocStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return const Center(
-              child: Text('Unable to load profile details.'),
-            );
-          }
-          final data = snapshot.data?.data() ?? {};
-          final fullName =
-              (data['fullName'] as String?) ?? user.displayName ?? 'Friend';
-          final email = (data['email'] as String?) ?? user.email ?? 'Not set';
-          final memberSince = _formatDate(data['createdAt']);
-
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              _buildHeader(fullName, email),
-              const SizedBox(height: 20),
-              _buildSectionTitle('Account Information'),
-              _buildInfoCard(
-                children: [
-                  _buildInfoRow('User ID', user.uid),
-                  _buildInfoRow('Email', email),
-                  if (memberSince != null)
-                    _buildInfoRow('Member Since', memberSince),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _buildSectionTitle('How to Use PillowTalk'),
-              _buildInfoCard(
-                children: const [
-                  _GuideRow(
-                    icon: Icons.chat_bubble_outline,
-                    title: 'Chat',
-                    description:
-                        'Start conversations to reflect and get supportive guidance.',
-                  ),
-                  _GuideRow(
-                    icon: Icons.book_outlined,
-                    title: 'Journal',
-                    description:
-                        'Log daily thoughts, moods, and insights to track progress.',
-                  ),
-                  _GuideRow(
-                    icon: Icons.calendar_today_outlined,
-                    title: 'Wellness',
-                    description:
-                        'Track cycle details and explore self-care suggestions.',
-                  ),
-                  _GuideRow(
-                    icon: Icons.lightbulb_outline,
-                    title: 'Learn',
-                    description:
-                        'Browse myths and fun facts to stay informed.',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _buildSectionTitle('Actions'),
-              _buildInfoCard(
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.logout, color: Colors.redAccent),
-                    title: const Text(
-                      'Log out',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle:
-                        const Text('Sign out and return to the onboarding page.'),
-                    onTap: authProvider.signOut,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildHeader(String name, String email) {
-    final initials = name.isNotEmpty ? name[0].toUpperCase() : 'P';
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 32,
-          backgroundColor: const Color(0xFF6366F1).withOpacity(0.15),
-          child: Text(
-            initials,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF6366F1),
+  static Widget _card({required List<Widget> children}) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-          ),
+          ],
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+        child: Column(children: children),
+      );
+
+  static Widget _infoRow(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 80,
+              child: Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                email,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF374151),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoCard({required List<Widget> children}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: children,
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 4,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w600,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 6,
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
 
-  String? _formatDate(dynamic value) {
-    if (value is Timestamp) {
-      final date = value.toDate();
-      final month = date.month.toString().padLeft(2, '0');
-      final day = date.day.toString().padLeft(2, '0');
-      return '${date.year}-$month-$day';
-    }
-    if (value is String && value.isNotEmpty) {
-      return value;
-    }
-    return null;
+  static String _formatDate(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
 
 class _GuideRow extends StatelessWidget {
   final IconData icon;
+  final Color iconColor;
   final String title;
   final String description;
 
   const _GuideRow({
     required this.icon,
+    required this.iconColor,
     required this.title,
     required this.description,
   });
@@ -251,38 +338,39 @@ class _GuideRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFF6366F1).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 18, color: const Color(0xFF6366F1)),
+            child: Icon(icon, size: 20, color: iconColor),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1E1B4B),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   description,
-                  style: TextStyle(
+                  style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: Colors.grey[600],
-                    height: 1.3,
+                    color: Colors.grey[500],
+                    height: 1.4,
                   ),
                 ),
               ],

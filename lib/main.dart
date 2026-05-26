@@ -1,5 +1,6 @@
 import 'package:chatbot_app_1/firebase_options.dart';
 import 'package:chatbot_app_1/pages/auth/provider/auth_provider.dart';
+import 'package:chatbot_app_1/pages/auth/verify_email_page.dart';
 import 'package:chatbot_app_1/pages/bottom_navigation/bottom_navigation.dart';
 import 'package:chatbot_app_1/pages/chatbot/provider/chat_provider.dart';
 import 'package:chatbot_app_1/pages/journaling/provider/journaling_provider.dart';
@@ -191,10 +192,18 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
+          // userChanges() fires not just on sign-in/out but also when the
+          // user object updates (e.g. after reload() flips emailVerified
+          // to true). authStateChanges() would not re-fire and the gate
+          // would stay stuck on the verify screen.
+          stream: FirebaseAuth.instance.userChanges(),
           builder: (context, asyncSnapshot) {
-            if (asyncSnapshot.hasData && asyncSnapshot.data != null) {
-              return BottomNavigation();
+            final user = asyncSnapshot.data;
+            if (asyncSnapshot.hasData && user != null) {
+              // Gate the app behind email verification.
+              return user.emailVerified
+                  ? BottomNavigation()
+                  : const VerifyEmailPage();
             }
             return const OnboardingPage();
           }),

@@ -1,7 +1,6 @@
 import 'package:chatbot_app_1/core/utils.dart';
 import 'package:chatbot_app_1/pages/auth/provider/auth_provider.dart';
 import 'package:chatbot_app_1/pages/auth/signup_page.dart';
-import 'package:chatbot_app_1/pages/bottom_navigation/bottom_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -170,7 +169,13 @@ class _LoginPageState extends State<LoginPage> {
                                   );
                                   if (context.mounted) {
                                     if (res) {
-                                      moveReplace(context, BottomNavigation());
+                                      // Pop back to the auth-gate StreamBuilder
+                                      // in main.dart, which will render the
+                                      // right screen based on auth state.
+                                      // Don't pushReplacement — that removes
+                                      // the gate and breaks sign-out routing.
+                                      Navigator.of(context)
+                                          .popUntil((r) => r.isFirst);
                                     } else {
                                       showSnackBar(context,
                                           'Sign in failed. Check your credentials.');

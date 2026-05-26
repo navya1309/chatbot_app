@@ -59,6 +59,12 @@ class AuthenticationProvider extends ChangeNotifier {
           'email': email,
           'createdAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+        // Fire off a verification email immediately. Errors here shouldn't
+        // block account creation — the user can resend from the verify screen.
+        try {
+          await credential.user?.sendEmailVerification();
+        } catch (_) {}
       }
 
       return true;
@@ -69,6 +75,42 @@ class AuthenticationProvider extends ChangeNotifier {
     } finally {
       _loading = false;
       notifyListeners();
+    }
+  }
+
+  // Re-send the verification email for the currently signed-in user.
+  Future<bool> resendVerificationEmail() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    try {
+      await user.sendEmailVerification();
+      return true;
+    } on FirebaseAuthException catch (_) {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Refresh the cached user so emailVerified reflects the latest server state.
+  // We also force-refresh the ID token: reload() alone doesn't always push a
+  // new event onto userChanges()/authStateChanges(), so the email-verification
+  // gate in main.dart can get stuck. getIdToken(true) makes the stream re-emit.
+  Future<bool> reloadUser() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    try {
+      await user.reload();
+      _user = _auth.currentUser;
+      if (_user != null) {
+        try {
+          await _user!.getIdToken(true);
+        } catch (_) {}
+      }
+      notifyListeners();
+      return _user?.emailVerified ?? false;
+    } catch (_) {
+      return false;
     }
   }
 

@@ -1,6 +1,9 @@
 import 'package:chatbot_app_1/pages/chatbot/provider/chat_reponse.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'package:firebase_database/firebase_database.dart';
@@ -18,6 +21,31 @@ class Message {
     required this.timestamp,
     this.isError = false,
   });
+
+  Map<String, dynamic> toFirestore() => {
+        'text': text,
+        'isUser': isUser,
+        'timestamp': Timestamp.fromDate(timestamp),
+        'isError': isError,
+      };
+
+  factory Message.fromFirestore(Map<String, dynamic> data) {
+    final ts = data['timestamp'];
+    DateTime timestamp;
+    if (ts is Timestamp) {
+      timestamp = ts.toDate();
+    } else if (ts is String) {
+      timestamp = DateTime.tryParse(ts) ?? DateTime.now();
+    } else {
+      timestamp = DateTime.now();
+    }
+    return Message(
+      text: (data['text'] ?? '').toString(),
+      isUser: data['isUser'] == true,
+      timestamp: timestamp,
+      isError: data['isError'] == true,
+    );
+  }
 }
 
 class ChatMessage {
@@ -35,26 +63,128 @@ class ChatMessage {
 }
 
 class GeminiApi with ChangeNotifier {
+  GeminiApi() {
+    // Bind chat history to whichever user is signed in. When the user signs
+    // out we reset back to the default welcome message.
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      _bindToUser(user?.uid);
+    });
+  }
+
   static const String _geminiKeyPath = 'config/gemini_api_key';
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _geminiKey;
 
+  StreamSubscription<User?>? _authSub;
+  String? _currentUserId;
+
+  // Sent to Gemini as conversation context.
   final List<Map<String, dynamic>> _chat = [];
-  final List<Message> _messages = [
-    Message(
-      text:
-          "Hey! I'm PillowTalk 💜 Your safe space to talk about *anything* — stress, friendships, life stuff. What's on your mind?",
-      isUser: false,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
-    ),
-  ];
+
+  static Message _welcomeMessage() => Message(
+        text:
+            "Hey! I'm PillowTalk 💜 Your safe space to talk about *anything* — stress, friendships, life stuff. What's on your mind?",
+        isUser: false,
+        timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
+      );
+
+  final List<Message> _messages = [_welcomeMessage()];
   List<Message> get messages => _messages;
 
   bool _loading = false;
   bool get loading => _loading;
 
+  bool _historyLoaded = false;
+  bool get historyLoaded => _historyLoaded;
+
+  CollectionReference<Map<String, dynamic>>? get _historyRef {
+    final uid = _currentUserId;
+    if (uid == null) return null;
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('chat_history');
+  }
+
   Future<void> make() async {
     await _loadGeminiKey();
+  }
+
+  Future<void> _bindToUser(String? uid) async {
+    if (uid == _currentUserId) return;
+    _currentUserId = uid;
+    _historyLoaded = false;
+    _chat.clear();
+    _messages
+      ..clear()
+      ..add(_welcomeMessage());
+    notifyListeners();
+
+    if (uid != null) {
+      await _loadHistory();
+    }
+  }
+
+  Future<void> _loadHistory() async {
+    final ref = _historyRef;
+    if (ref == null) return;
+    try {
+      final snap = await ref.orderBy('timestamp').get();
+      if (snap.docs.isNotEmpty) {
+        _messages.clear();
+        _chat.clear();
+        for (final doc in snap.docs) {
+          final msg = Message.fromFirestore(doc.data());
+          _messages.add(msg);
+          if (!msg.isError) {
+            _chat.add({
+              'role': msg.isUser ? 'user' : 'model',
+              'parts': [
+                {'text': msg.text},
+              ],
+            });
+          }
+        }
+      }
+      _historyLoaded = true;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      log('Failed to load chat history: $e\n$stackTrace');
+      _historyLoaded = true;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _persistMessage(Message msg) async {
+    final ref = _historyRef;
+    if (ref == null) return;
+    try {
+      await ref.add(msg.toFirestore());
+    } catch (e) {
+      log('Failed to persist chat message: $e');
+    }
+  }
+
+  Future<void> clearHistory() async {
+    final ref = _historyRef;
+    if (ref != null) {
+      try {
+        final snap = await ref.get();
+        final batch = _firestore.batch();
+        for (final doc in snap.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      } catch (e) {
+        log('Failed to clear chat history: $e');
+      }
+    }
+    _chat.clear();
+    _messages
+      ..clear()
+      ..add(_welcomeMessage());
+    notifyListeners();
   }
 
   Future<String> _loadGeminiKey() async {
@@ -70,7 +200,6 @@ class GeminiApi with ChangeNotifier {
       throw StateError('Gemini API key is invalid at $_geminiKeyPath');
     }
     _geminiKey = value.trim();
-    log("geminikey $_geminiKey");
     return _geminiKey!;
   }
 
@@ -84,14 +213,14 @@ class GeminiApi with ChangeNotifier {
         {"text": prompt},
       ],
     });
-    _messages.add(
-      Message(
-        text: prompt,
-        isUser: true,
-        timestamp: DateTime.now(),
-      ),
+    final userMsg = Message(
+      text: prompt,
+      isUser: true,
+      timestamp: DateTime.now(),
     );
+    _messages.add(userMsg);
     notifyListeners();
+    unawaited(_persistMessage(userMsg));
 
     try {
       final geminiKey = await _loadGeminiKey();
@@ -161,15 +290,14 @@ Don't give emergency advice or try to "fix" big issues.
             {"text": val},
           ],
         });
-        log(val);
-        _messages.add(
-          Message(
-            text: val,
-            isUser: false,
-            timestamp: DateTime.now(),
-          ),
+        final botMsg = Message(
+          text: val,
+          isUser: false,
+          timestamp: DateTime.now(),
         );
+        _messages.add(botMsg);
         notifyListeners();
+        unawaited(_persistMessage(botMsg));
         return res.body;
       }
 
@@ -206,5 +334,11 @@ Don't give emergency advice or try to "fix" big issues.
       _loading = false;
       notifyListeners();
     }
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 }

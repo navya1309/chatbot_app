@@ -27,23 +27,23 @@ class ProfilePage extends StatelessWidget {
         if (profileStream == null) {
           return const Scaffold(
             backgroundColor: Color(0xFFF8F7FF),
-            body: Center(
-                child: CircularProgressIndicator(color: _primary)),
+            body: Center(child: CircularProgressIndicator(color: _primary)),
           );
         }
 
         return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: profileStream,
           builder: (context, snapshot) {
-            String fullName = 'Friend';
+            String fullName = provider.fullName;
             String email = user.email ?? 'Not set';
             String? memberSince;
 
             if (snapshot.hasData && snapshot.data!.exists) {
               final data = snapshot.data!.data()!;
-              fullName = (data['fullName'] as String?)?.trim().isNotEmpty == true
-                  ? data['fullName'] as String
-                  : user.displayName ?? 'Friend';
+              fullName =
+                  (data['fullName'] as String?)?.trim().isNotEmpty == true
+                      ? data['fullName'] as String
+                      : user.displayName ?? 'Friend';
               email = (data['email'] as String?) ?? user.email ?? 'Not set';
               final createdAt = data['createdAt'];
               if (createdAt is Timestamp) {
@@ -51,7 +51,8 @@ class ProfilePage extends StatelessWidget {
               }
             }
 
-            final initials = fullName.isNotEmpty ? fullName[0].toUpperCase() : 'P';
+            final initials =
+                fullName.isNotEmpty ? fullName[0].toUpperCase() : 'P';
 
             return Scaffold(
               backgroundColor: const Color(0xFFF8F7FF),
@@ -175,7 +176,6 @@ class ProfilePage extends StatelessWidget {
                         _sectionTitle('Account'),
                         const SizedBox(height: 10),
                         _card(children: [
-                          _infoRow('User ID', user.uid),
                           _infoRow('Email', email),
                         ]),
 
@@ -214,7 +214,8 @@ class ProfilePage extends StatelessWidget {
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Log Out',
@@ -315,8 +316,18 @@ class ProfilePage extends StatelessWidget {
 
   static String _formatDate(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }

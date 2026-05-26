@@ -1,7 +1,15 @@
-import 'dart:math';
+import 'dart:convert';
+import 'dart:developer';
+import 'dart:io';
+import 'dart:math' hide log;
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 // ─────────────────────────────────────────
 //  Data Models
@@ -26,6 +34,13 @@ class JournalEntry {
   final List<String> moods;
   final JournalEntryType type;
   final bool isPassive;
+  // Remote URL for media-backed entries (audio for voice notes, PNG for
+  // doodles). Stored alongside the entry; null for plain text entries.
+  final String? mediaUrl;
+  // Firebase Storage path so we can delete the underlying file on delete.
+  final String? mediaPath;
+  // Recording duration in milliseconds for voice notes.
+  final int? mediaDurationMs;
 
   JournalEntry({
     required this.id,
@@ -36,6 +51,9 @@ class JournalEntry {
     required this.moods,
     required this.type,
     this.isPassive = false,
+    this.mediaUrl,
+    this.mediaPath,
+    this.mediaDurationMs,
   });
 
   Map<String, dynamic> toJson() => {
@@ -47,6 +65,9 @@ class JournalEntry {
         'moods': moods,
         'type': type.toString().split('.').last,
         'isPassive': isPassive,
+        if (mediaUrl != null) 'mediaUrl': mediaUrl,
+        if (mediaPath != null) 'mediaPath': mediaPath,
+        if (mediaDurationMs != null) 'mediaDurationMs': mediaDurationMs,
       };
 
   factory JournalEntry.fromJson(Map<String, dynamic> json) => JournalEntry(
@@ -58,8 +79,32 @@ class JournalEntry {
         moods: List<String>.from(json['moods'] as List),
         type: JournalEntryType.values.firstWhere(
           (e) => e.toString().split('.').last == json['type'],
+          orElse: () => JournalEntryType.free_write,
         ),
         isPassive: json['isPassive'] as bool? ?? false,
+        mediaUrl: json['mediaUrl'] as String?,
+        mediaPath: json['mediaPath'] as String?,
+        mediaDurationMs: json['mediaDurationMs'] as int?,
+      );
+
+  JournalEntry copyWith({
+    String? id,
+    String? mediaUrl,
+    String? mediaPath,
+    int? mediaDurationMs,
+  }) =>
+      JournalEntry(
+        id: id ?? this.id,
+        title: title,
+        content: content,
+        timestamp: timestamp,
+        tags: tags,
+        moods: moods,
+        type: type,
+        isPassive: isPassive,
+        mediaUrl: mediaUrl ?? this.mediaUrl,
+        mediaPath: mediaPath ?? this.mediaPath,
+        mediaDurationMs: mediaDurationMs ?? this.mediaDurationMs,
       );
 }
 
@@ -99,6 +144,12 @@ class WeeklyInsight {
   final List<String> suggestions;
   final String affirmation;
   final int totalEntries;
+  // AI-generated narrative reflection on the user's week.
+  final String? aiReflection;
+  // Bulleted guidance steps from the AI.
+  final List<String> aiGuidance;
+  // Short summary line for the mood distribution.
+  final String? moodSummary;
 
   WeeklyInsight({
     required this.weekStart,
@@ -108,7 +159,28 @@ class WeeklyInsight {
     required this.suggestions,
     required this.affirmation,
     required this.totalEntries,
+    this.aiReflection,
+    this.aiGuidance = const [],
+    this.moodSummary,
   });
+
+  WeeklyInsight copyWith({
+    String? aiReflection,
+    List<String>? aiGuidance,
+    String? moodSummary,
+  }) =>
+      WeeklyInsight(
+        weekStart: weekStart,
+        weekEnd: weekEnd,
+        moodPercentages: moodPercentages,
+        topTopics: topTopics,
+        suggestions: suggestions,
+        affirmation: affirmation,
+        totalEntries: totalEntries,
+        aiReflection: aiReflection ?? this.aiReflection,
+        aiGuidance: aiGuidance ?? this.aiGuidance,
+        moodSummary: moodSummary ?? this.moodSummary,
+      );
 }
 
 class JournalingSettings {
@@ -148,8 +220,198 @@ class JournalingSettings {
 class JournalingProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   String get _userId => _auth.currentUser?.uid ?? '';
+
+  // ── Media uploads ──────────────────────────────────────────
+  // Voice notes are saved under users/<uid>/voice_notes/<entryId>.m4a
+  // Doodles are saved under users/<uid>/doodles/<entryId>.png
+  Future<({String url, String path})> uploadVoiceNote({
+    required String entryId,
+    required File file,
+  }) async {
+    if (_userId.isEmpty) {
+      throw StateError('Cannot upload voice note: no signed-in user.');
+    }
+    final path = 'users/$_userId/voice_notes/$entryId.m4a';
+    final ref = _storage.ref().child(path);
+    await ref.putFile(
+      file,
+      SettableMetadata(contentType: 'audio/m4a'),
+    );
+    final url = await ref.getDownloadURL();
+    return (url: url, path: path);
+  }
+
+  Future<({String url, String path})> uploadDoodle({
+    required String entryId,
+    required Uint8List bytes,
+  }) async {
+    if (_userId.isEmpty) {
+      throw StateError('Cannot upload doodle: no signed-in user.');
+    }
+    final path = 'users/$_userId/doodles/$entryId.png';
+    final ref = _storage.ref().child(path);
+    await ref.putData(
+      bytes,
+      SettableMetadata(contentType: 'image/png'),
+    );
+    final url = await ref.getDownloadURL();
+    return (url: url, path: path);
+  }
+
+  // ── Gemini-powered AI reflection ──────────────────────────
+  static const String _geminiKeyPath = 'config/gemini_api_key';
+  String? _cachedGeminiKey;
+  bool _refreshingAi = false;
+  bool get refreshingAi => _refreshingAi;
+
+  Future<String> _loadGeminiKey() async {
+    if (_cachedGeminiKey != null && _cachedGeminiKey!.isNotEmpty) {
+      return _cachedGeminiKey!;
+    }
+    final snap =
+        await FirebaseDatabase.instance.ref().child(_geminiKeyPath).get();
+    if (!snap.exists) {
+      throw StateError('Gemini API key missing at $_geminiKeyPath');
+    }
+    final value = snap.value;
+    if (value is! String || value.trim().isEmpty) {
+      throw StateError('Gemini API key invalid at $_geminiKeyPath');
+    }
+    _cachedGeminiKey = value.trim();
+    return _cachedGeminiKey!;
+  }
+
+  // Builds a compact prompt from this week's moods, top topics, and a few
+  // recent journal excerpts, then asks Gemini to produce a JSON object with:
+  //   { "summary": "...", "reflection": "...", "guidance": ["...", "..."] }
+  // Falls back gracefully if anything throws or the response isn't valid JSON.
+  Future<WeeklyInsight> _enrichWithAi(WeeklyInsight base) async {
+    if (_userId.isEmpty) return base;
+    try {
+      final key = await _loadGeminiKey();
+
+      final moodLines = base.moodPercentages.entries
+          .map((e) => '${e.key}: ${e.value.toStringAsFixed(0)}%')
+          .join(', ');
+      // Pull up to 5 recent journal excerpts for context — keep each short
+      // to bound token usage.
+      final recent = activeEntries
+          .where((e) => e.content.trim().isNotEmpty)
+          .take(5)
+          .map((e) {
+        final excerpt = e.content.length > 240
+            ? '${e.content.substring(0, 240)}…'
+            : e.content;
+        return '- (${e.type.toString().split('.').last}) $excerpt';
+      }).join('\n');
+
+      final prompt = '''
+You are a warm, non-judgmental teen wellness companion helping a user reflect
+on their week from their journal data.
+
+Mood distribution this week: ${moodLines.isEmpty ? 'no mood entries' : moodLines}
+Top topics: ${base.topTopics.join(', ')}
+Total journal entries: ${base.totalEntries}
+Current mood right now: $currentMood
+
+Recent journal excerpts:
+${recent.isEmpty ? '(no entries yet)' : recent}
+
+Respond with **valid JSON only** (no markdown fences, no commentary) using
+this exact shape:
+
+{
+  "summary": "One short sentence summarising the emotional shape of the week.",
+  "reflection": "2–4 sentences gently reflecting back what stands out. Use 'you'. Be specific to the data above. Validating, never clinical.",
+  "guidance": [
+    "Concrete, kind step the user could try this week.",
+    "Another small actionable step.",
+    "Optional third step."
+  ]
+}
+''';
+
+      final res = await http.post(
+        Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=$key',
+        ),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'contents': [
+            {
+              'role': 'user',
+              'parts': [
+                {'text': prompt},
+              ],
+            },
+          ],
+          'generationConfig': {
+            'responseMimeType': 'application/json',
+            'temperature': 0.7,
+          },
+        }),
+      );
+
+      if (res.statusCode != 200) {
+        log('Gemini insight call failed: ${res.statusCode} ${res.body}');
+        return base;
+      }
+
+      final body = jsonDecode(res.body);
+      final text = body['candidates']?[0]?['content']?['parts']?[0]?['text'];
+      if (text is! String || text.trim().isEmpty) return base;
+
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(text) as Map<String, dynamic>;
+      } catch (_) {
+        // Fallback: try to pull JSON out of the response if the model wrapped it.
+        final start = text.indexOf('{');
+        final end = text.lastIndexOf('}');
+        if (start < 0 || end <= start) return base;
+        parsed = jsonDecode(text.substring(start, end + 1))
+            as Map<String, dynamic>;
+      }
+
+      final guidance = (parsed['guidance'] as List?)
+              ?.map((e) => e?.toString().trim() ?? '')
+              .where((e) => e.isNotEmpty)
+              .toList() ??
+          const <String>[];
+
+      return base.copyWith(
+        aiReflection: (parsed['reflection'] as String?)?.trim(),
+        aiGuidance: guidance,
+        moodSummary: (parsed['summary'] as String?)?.trim(),
+      );
+    } catch (e, stack) {
+      log('AI insight enrichment failed: $e\n$stack');
+      return base;
+    }
+  }
+
+  // Force a fresh AI reflection (used by the "regenerate" button in UI).
+  Future<void> refreshAiInsight() async {
+    if (weeklyInsight == null) return;
+    _refreshingAi = true;
+    notifyListeners();
+    final enriched = await _enrichWithAi(weeklyInsight!);
+    weeklyInsight = enriched;
+    _refreshingAi = false;
+    notifyListeners();
+  }
+
+  Future<void> _deleteStorageFile(String? path) async {
+    if (path == null || path.isEmpty) return;
+    try {
+      await _storage.ref().child(path).delete();
+    } catch (_) {
+      // Swallow — file may already be gone.
+    }
+  }
 
   // ── State ──
   List<JournalEntry> allEntries = [];
@@ -197,35 +459,69 @@ class JournalingProvider with ChangeNotifier {
 
   // ─────────── CRUD ───────────
 
-  Future<void> createEntry(JournalEntry entry) async {
-    try {
-      final docRef = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('journal_entries')
-          .add(entry.toJson());
+  Future<JournalEntry> createEntry(JournalEntry entry) async {
+    final docRef = await _firestore
+        .collection('users')
+        .doc(_userId)
+        .collection('journal_entries')
+        .add(entry.toJson());
 
-      final saved = JournalEntry(
-        id: docRef.id,
-        title: entry.title,
-        content: entry.content,
-        timestamp: entry.timestamp,
-        tags: entry.tags,
-        moods: entry.moods,
-        type: entry.type,
-        isPassive: entry.isPassive,
-      );
+    final saved = JournalEntry(
+      id: docRef.id,
+      title: entry.title,
+      content: entry.content,
+      timestamp: entry.timestamp,
+      tags: entry.tags,
+      moods: entry.moods,
+      type: entry.type,
+      isPassive: entry.isPassive,
+      mediaUrl: entry.mediaUrl,
+      mediaPath: entry.mediaPath,
+      mediaDurationMs: entry.mediaDurationMs,
+    );
 
-      allEntries.insert(0, saved);
-      if (saved.isPassive) {
-        passiveEntries.insert(0, saved);
-      } else {
-        activeEntries.insert(0, saved);
-      }
-      notifyListeners();
-    } catch (e) {
-      rethrow;
+    allEntries.insert(0, saved);
+    if (saved.isPassive) {
+      passiveEntries.insert(0, saved);
+    } else {
+      activeEntries.insert(0, saved);
     }
+    notifyListeners();
+    return saved;
+  }
+
+  // Attach uploaded media to an entry that already exists.
+  Future<void> attachMedia(
+    String entryId, {
+    required String mediaUrl,
+    required String mediaPath,
+    int? mediaDurationMs,
+  }) async {
+    await _firestore
+        .collection('users')
+        .doc(_userId)
+        .collection('journal_entries')
+        .doc(entryId)
+        .update({
+      'mediaUrl': mediaUrl,
+      'mediaPath': mediaPath,
+      if (mediaDurationMs != null) 'mediaDurationMs': mediaDurationMs,
+    });
+
+    void replace(List<JournalEntry> list) {
+      final idx = list.indexWhere((e) => e.id == entryId);
+      if (idx == -1) return;
+      list[idx] = list[idx].copyWith(
+        mediaUrl: mediaUrl,
+        mediaPath: mediaPath,
+        mediaDurationMs: mediaDurationMs,
+      );
+    }
+
+    replace(allEntries);
+    replace(activeEntries);
+    replace(passiveEntries);
+    notifyListeners();
   }
 
   Future<void> updateEntry(JournalEntry entry) async {
@@ -242,12 +538,30 @@ class JournalingProvider with ChangeNotifier {
   }
 
   Future<void> deleteEntry(String id) async {
+    // Look up any media path so we can clean up Firebase Storage too.
+    String? mediaPath;
+    final existing = allEntries.firstWhere(
+      (e) => e.id == id,
+      orElse: () => JournalEntry(
+        id: '',
+        title: '',
+        content: '',
+        timestamp: DateTime.now(),
+        tags: const [],
+        moods: const [],
+        type: JournalEntryType.free_write,
+      ),
+    );
+    if (existing.id.isNotEmpty) mediaPath = existing.mediaPath;
+
     await _firestore
         .collection('users')
         .doc(_userId)
         .collection('journal_entries')
         .doc(id)
         .delete();
+
+    await _deleteStorageFile(mediaPath);
 
     allEntries.removeWhere((e) => e.id == id);
     passiveEntries.removeWhere((e) => e.id == id);
@@ -432,7 +746,7 @@ class JournalingProvider with ChangeNotifier {
           .map((e) => e.key)
           .toList();
 
-      return WeeklyInsight(
+      final base = WeeklyInsight(
         weekStart: weekStart,
         weekEnd: weekEnd,
         moodPercentages: moodPct,
@@ -441,6 +755,8 @@ class JournalingProvider with ChangeNotifier {
         affirmation: _affirmation(),
         totalEntries: entriesSnap.docs.length,
       );
+      // Layer in AI reflection / guidance on top of the deterministic stats.
+      return await _enrichWithAi(base);
     } catch (_) {
       return _emptyInsight();
     }

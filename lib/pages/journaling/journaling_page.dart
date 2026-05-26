@@ -1,6 +1,17 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:audioplayers/audioplayers.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:record/record.dart';
+import 'package:scribble/scribble.dart';
+
 import 'provider/journaling_provider.dart';
 
 class JournalingPage extends StatefulWidget {
@@ -476,6 +487,153 @@ class _JournalingPageState extends State<JournalingPage>
 
         const SizedBox(height: 20),
 
+        // Mood summary (AI-generated single-line headline of the week's mood).
+        if ((insight.moodSummary ?? '').isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFEDE9FE), Color(0xFFFCE7F3)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('🌈', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    insight.moodSummary!,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E1B4B),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        // AI reflection card.
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: _primary.withValues(alpha: 0.18),
+              width: 1.4,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded,
+                        color: Colors.white, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'AI Reflection',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF1E1B4B),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Regenerate reflection',
+                    onPressed: provider.refreshingAi
+                        ? null
+                        : provider.refreshAiInsight,
+                    icon: provider.refreshingAi
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: _primary),
+                          )
+                        : const Icon(Icons.refresh_rounded, size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                (insight.aiReflection ?? '').isNotEmpty
+                    ? insight.aiReflection!
+                    : 'Tap refresh to get a personalized reflection from AI based on your moods and journal entries this week.',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  height: 1.6,
+                  color: const Color(0xFF374151),
+                ),
+              ),
+              if (insight.aiGuidance.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  'What might help',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[600],
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...insight.aiGuidance.map(
+                  (g) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('✦  ',
+                            style: TextStyle(color: Color(0xFF6366F1))),
+                        Expanded(
+                          child: Text(
+                            g,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              height: 1.5,
+                              color: const Color(0xFF374151),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
         // Affirmation
         Container(
           padding: const EdgeInsets.all(20),
@@ -782,6 +940,33 @@ class _JournalingPageState extends State<JournalingPage>
     String prefillContent = '',
     JournalEntryType type = JournalEntryType.free_write,
   }) {
+    final resolvedType = entry?.type ?? type;
+    // Voice and doodle entries get their own purpose-built sheets so the
+    // generic text editor doesn't have to know about recording / drawing.
+    if (resolvedType == JournalEntryType.voice_note) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _VoiceNoteSheet(
+          provider: provider,
+          existingEntry: entry,
+        ),
+      );
+      return;
+    }
+    if (resolvedType == JournalEntryType.doodle) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _DoodleSheet(
+          provider: provider,
+          existingEntry: entry,
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -791,7 +976,7 @@ class _JournalingPageState extends State<JournalingPage>
         existingEntry: entry,
         prefillTitle: entry?.title ?? prefillTitle,
         prefillContent: entry?.content ?? prefillContent,
-        entryType: entry?.type ?? type,
+        entryType: resolvedType,
       ),
     );
   }
@@ -934,16 +1119,26 @@ class _EntryCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              Text(
-                entry.content,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: const Color(0xFF374151),
-                  height: 1.55,
+              if (entry.content.trim().isNotEmpty)
+                Text(
+                  entry.content,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: const Color(0xFF374151),
+                    height: 1.55,
+                  ),
                 ),
-              ),
+              if (entry.type == JournalEntryType.voice_note &&
+                  entry.mediaUrl != null)
+                _VoiceNotePreview(
+                  url: entry.mediaUrl!,
+                  durationMs: entry.mediaDurationMs,
+                ),
+              if (entry.type == JournalEntryType.doodle &&
+                  entry.mediaUrl != null)
+                _DoodlePreview(url: entry.mediaUrl!),
               if (entry.moods.isNotEmpty || entry.tags.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Row(
@@ -1481,6 +1676,712 @@ class _JournalEditorSheetState extends State<_JournalEditorSheet> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────
+//  Voice Note Sheet
+// ─────────────────────────────────────────
+
+class _VoiceNoteSheet extends StatefulWidget {
+  final JournalingProvider provider;
+  final JournalEntry? existingEntry;
+
+  const _VoiceNoteSheet({required this.provider, this.existingEntry});
+
+  @override
+  State<_VoiceNoteSheet> createState() => _VoiceNoteSheetState();
+}
+
+class _VoiceNoteSheetState extends State<_VoiceNoteSheet> {
+  static const _primary = Color(0xFF6366F1);
+
+  final AudioRecorder _recorder = AudioRecorder();
+  final AudioPlayer _player = AudioPlayer();
+  final TextEditingController _titleCtrl = TextEditingController();
+  final TextEditingController _notesCtrl = TextEditingController();
+
+  String? _localPath;
+  Duration _elapsed = Duration.zero;
+  Timer? _ticker;
+  bool _isRecording = false;
+  bool _isPlaying = false;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl.text = widget.existingEntry?.title.isNotEmpty == true
+        ? widget.existingEntry!.title
+        : 'Voice Note';
+    _notesCtrl.text = widget.existingEntry?.content ?? '';
+    _player.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+      setState(() => _isPlaying = state == PlayerState.playing);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _recorder.dispose();
+    _player.dispose();
+    _titleCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _startRecording() async {
+    setState(() => _error = null);
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      setState(() => _error = 'Microphone permission denied.');
+      return;
+    }
+    final hasPermission = await _recorder.hasPermission();
+    if (!hasPermission) {
+      setState(() => _error = 'Microphone permission denied.');
+      return;
+    }
+    final dir = await getTemporaryDirectory();
+    final path =
+        '${dir.path}/voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    await _recorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc),
+      path: path,
+    );
+    setState(() {
+      _localPath = path;
+      _isRecording = true;
+      _elapsed = Duration.zero;
+    });
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _elapsed += const Duration(seconds: 1));
+    });
+  }
+
+  Future<void> _stopRecording() async {
+    final path = await _recorder.stop();
+    _ticker?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _isRecording = false;
+      if (path != null) _localPath = path;
+    });
+  }
+
+  Future<void> _togglePlayback() async {
+    if (_localPath == null && widget.existingEntry?.mediaUrl == null) return;
+    if (_isPlaying) {
+      await _player.pause();
+      return;
+    }
+    if (_localPath != null) {
+      await _player.play(DeviceFileSource(_localPath!));
+    } else if (widget.existingEntry?.mediaUrl != null) {
+      await _player.play(UrlSource(widget.existingEntry!.mediaUrl!));
+    }
+  }
+
+  Future<void> _save() async {
+    if (_localPath == null && widget.existingEntry?.mediaUrl == null) {
+      setState(() => _error = 'Record something first.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      JournalEntry savedEntry;
+      if (widget.existingEntry == null) {
+        // Create the entry first to obtain its id, then upload + attach.
+        final draft = JournalEntry(
+          id: '',
+          title: _titleCtrl.text.trim().isEmpty
+              ? 'Voice Note'
+              : _titleCtrl.text.trim(),
+          content: _notesCtrl.text.trim(),
+          timestamp: DateTime.now(),
+          tags: const [],
+          moods: const [],
+          type: JournalEntryType.voice_note,
+        );
+        savedEntry = await widget.provider.createEntry(draft);
+      } else {
+        savedEntry = widget.existingEntry!;
+      }
+
+      if (_localPath != null) {
+        final uploaded = await widget.provider.uploadVoiceNote(
+          entryId: savedEntry.id,
+          file: File(_localPath!),
+        );
+        await widget.provider.attachMedia(
+          savedEntry.id,
+          mediaUrl: uploaded.url,
+          mediaPath: uploaded.path,
+          mediaDurationMs: _elapsed.inMilliseconds,
+        );
+      }
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Could not save voice note: $e';
+          _saving = false;
+        });
+      }
+    }
+  }
+
+  String _fmtElapsed(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.inMinutes)}:${two(d.inSeconds % 60)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SingleChildScrollView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Text('Voice Note',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF1E1B4B))),
+              const SizedBox(height: 4),
+              Text(
+                _isRecording
+                    ? 'Recording…'
+                    : (_localPath != null ||
+                            widget.existingEntry?.mediaUrl != null)
+                        ? 'Tap play to review, or save when ready.'
+                        : 'Tap the mic to start recording.',
+                style: GoogleFonts.inter(
+                    fontSize: 13, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 24),
+              Center(
+                child: Column(
+                  children: [
+                    GestureDetector(
+                      onTap: _isRecording ? _stopRecording : _startRecording,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: _isRecording
+                                ? const [Color(0xFFEF4444), Color(0xFFF97316)]
+                                : const [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (_isRecording
+                                      ? const Color(0xFFEF4444)
+                                      : _primary)
+                                  .withValues(alpha: 0.4),
+                              blurRadius: 24,
+                              spreadRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+                          size: 48,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _fmtElapsed(_elapsed),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1E1B4B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (_localPath != null || widget.existingEntry?.mediaUrl != null)
+                Center(
+                  child: OutlinedButton.icon(
+                    onPressed: _togglePlayback,
+                    icon: Icon(
+                        _isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 18),
+                    label: Text(_isPlaying ? 'Pause' : 'Play back'),
+                  ),
+                ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _titleCtrl,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notesCtrl,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Notes (optional)',
+                  alignLabelWithHint: true,
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(_error!,
+                    style: GoogleFonts.inter(
+                        fontSize: 13, color: const Color(0xFFDC2626))),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Save voice note'),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────
+//  Doodle Sheet
+// ─────────────────────────────────────────
+
+class _DoodleSheet extends StatefulWidget {
+  final JournalingProvider provider;
+  final JournalEntry? existingEntry;
+
+  const _DoodleSheet({required this.provider, this.existingEntry});
+
+  @override
+  State<_DoodleSheet> createState() => _DoodleSheetState();
+}
+
+class _DoodleSheetState extends State<_DoodleSheet> {
+  late final ScribbleNotifier _scribbleNotifier;
+  final TextEditingController _titleCtrl = TextEditingController();
+  final TextEditingController _notesCtrl = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  static const _palette = [
+    Color(0xFF1E1B4B),
+    Color(0xFF6366F1),
+    Color(0xFFF472B6),
+    Color(0xFFEF4444),
+    Color(0xFFF59E0B),
+    Color(0xFF10B981),
+    Color(0xFF0EA5E9),
+  ];
+
+  static const _strokeWidths = [2.0, 4.0, 8.0, 14.0];
+
+  @override
+  void initState() {
+    super.initState();
+    _scribbleNotifier = ScribbleNotifier();
+    _titleCtrl.text = widget.existingEntry?.title.isNotEmpty == true
+        ? widget.existingEntry!.title
+        : 'Doodle Entry';
+    _notesCtrl.text = widget.existingEntry?.content ?? '';
+  }
+
+  @override
+  void dispose() {
+    _scribbleNotifier.dispose();
+    _titleCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      // Render the scribble canvas to a PNG byte buffer.
+      final image = await _scribbleNotifier.renderImage();
+      final Uint8List bytes = image.buffer.asUint8List();
+
+      JournalEntry savedEntry;
+      if (widget.existingEntry == null) {
+        final draft = JournalEntry(
+          id: '',
+          title: _titleCtrl.text.trim().isEmpty
+              ? 'Doodle Entry'
+              : _titleCtrl.text.trim(),
+          content: _notesCtrl.text.trim(),
+          timestamp: DateTime.now(),
+          tags: const [],
+          moods: const [],
+          type: JournalEntryType.doodle,
+        );
+        savedEntry = await widget.provider.createEntry(draft);
+      } else {
+        savedEntry = widget.existingEntry!;
+      }
+
+      final uploaded = await widget.provider.uploadDoodle(
+        entryId: savedEntry.id,
+        bytes: bytes,
+      );
+      await widget.provider.attachMedia(
+        savedEntry.id,
+        mediaUrl: uploaded.url,
+        mediaPath: uploaded.path,
+      );
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Could not save doodle: $e';
+          _saving = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.92,
+      minChildSize: 0.6,
+      maxChildSize: 0.97,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Doodle',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF1E1B4B))),
+                  ),
+                  IconButton(
+                    tooltip: 'Undo',
+                    onPressed: _scribbleNotifier.undo,
+                    icon: const Icon(Icons.undo_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Redo',
+                    onPressed: _scribbleNotifier.redo,
+                    icon: const Icon(Icons.redo_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Clear',
+                    onPressed: _scribbleNotifier.clear,
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    color: const Color(0xFFF3F4F6),
+                    child: Scribble(notifier: _scribbleNotifier),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  for (final color in _palette)
+                    GestureDetector(
+                      onTap: () => _scribbleNotifier.setColor(color),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: Colors.white, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  IconButton(
+                    tooltip: 'Eraser',
+                    onPressed: _scribbleNotifier.setEraser,
+                    icon: const Icon(Icons.cleaning_services_rounded,
+                        size: 20),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text('Brush',
+                      style: GoogleFonts.inter(
+                          fontSize: 12, color: Colors.grey[600])),
+                  const SizedBox(width: 8),
+                  for (final w in _strokeWidths)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: GestureDetector(
+                        onTap: () =>
+                            _scribbleNotifier.setStrokeWidth(w),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          alignment: Alignment.center,
+                          child: Container(
+                            width: w * 1.4,
+                            height: w * 1.4,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1E1B4B),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              TextField(
+                controller: _titleCtrl,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _notesCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Notes (optional)',
+                  alignLabelWithHint: true,
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(_error!,
+                    style: GoogleFonts.inter(
+                        fontSize: 13, color: const Color(0xFFDC2626))),
+              ],
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Save doodle'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────
+//  Media preview widgets (used inside entry cards)
+// ─────────────────────────────────────────
+
+class _VoiceNotePreview extends StatefulWidget {
+  final String url;
+  final int? durationMs;
+  const _VoiceNotePreview({required this.url, this.durationMs});
+
+  @override
+  State<_VoiceNotePreview> createState() => _VoiceNotePreviewState();
+}
+
+class _VoiceNotePreviewState extends State<_VoiceNotePreview> {
+  final AudioPlayer _player = AudioPlayer();
+  bool _isPlaying = false;
+  StreamSubscription<PlayerState>? _stateSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _stateSub = _player.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+      setState(() => _isPlaying = state == PlayerState.playing);
+    });
+  }
+
+  @override
+  void dispose() {
+    _stateSub?.cancel();
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    if (_isPlaying) {
+      await _player.pause();
+    } else {
+      await _player.play(UrlSource(widget.url));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final secs = (widget.durationMs ?? 0) ~/ 1000;
+    final label = secs > 0
+        ? '${(secs ~/ 60).toString().padLeft(2, '0')}:${(secs % 60).toString().padLeft(2, '0')}'
+        : 'Voice note';
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.35), width: 1),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: _toggle,
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF59E0B),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF92400E),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DoodlePreview extends StatelessWidget {
+  final String url;
+  const _DoodlePreview({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: CachedNetworkImage(
+          imageUrl: url,
+          height: 160,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          placeholder: (ctx, _) => Container(
+            height: 160,
+            color: const Color(0xFFF3F4F6),
+            alignment: Alignment.center,
+            child: const CircularProgressIndicator(strokeWidth: 2),
+          ),
+          errorWidget: (ctx, _, __) => Container(
+            height: 160,
+            color: const Color(0xFFF3F4F6),
+            alignment: Alignment.center,
+            child: const Icon(Icons.broken_image_outlined),
+          ),
         ),
       ),
     );

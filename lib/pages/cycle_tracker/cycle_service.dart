@@ -166,6 +166,46 @@ class CycleService {
     }
   }
 
+  // Predict the next N upcoming cycles, chained forward from the last log.
+  // The first entry is the next period; subsequent entries roll by avgCycleLength.
+  Future<List<PeriodPrediction>> predictUpcomingCycles({int count = 12}) async {
+    try {
+      final logs = await getAllPeriodLogs();
+      final int avgCycleLength = await getAverageCycleLength();
+      final int avgPeriodDuration = await getAveragePeriodDuration();
+
+      DateTime anchor;
+      double confidence;
+      if (logs.isEmpty) {
+        anchor = DateTime.now();
+        confidence = 0.0;
+      } else {
+        anchor = logs.first.startDate;
+        confidence = _calculatePredictionConfidence(logs);
+      }
+
+      final predictions = <PeriodPrediction>[];
+      for (int i = 1; i <= count; i++) {
+        final start = anchor.add(Duration(days: avgCycleLength * i));
+        final end = start.add(Duration(days: avgPeriodDuration - 1));
+        final ovulation = start.subtract(const Duration(days: 14));
+        final pmsStart = start.subtract(const Duration(days: 5));
+        predictions.add(PeriodPrediction(
+          predictedStartDate: start,
+          predictedEndDate: end,
+          ovulationDate: ovulation,
+          pmsStartDate: pmsStart,
+          confidence: confidence,
+        ));
+      }
+      return predictions;
+    } catch (e, stackTrace) {
+      print('ERROR: predictUpcomingCycles failed - $e');
+      print('STACK TRACE: $stackTrace');
+      return [];
+    }
+  }
+
   // Predict next period
   Future<PeriodPrediction> predictNextPeriod() async {
     try {
@@ -326,57 +366,58 @@ class CycleService {
   Future<Map<String, List<DateTime>>> getCalendarDays(DateTime month) async {
     try {
       print('DEBUG: Getting calendar days for ${month.month}/${month.year}');
-      final prediction = await predictNextPeriod();
-      final logs = await getPeriodLogsInRange(
-        DateTime(month.year, month.month, 1),
-        DateTime(month.year, month.month + 1, 0),
-      );
+      final monthStart = DateTime(month.year, month.month, 1);
+      final monthEnd = DateTime(month.year, month.month + 1, 0);
+
+      // Pull all logs so we can render historical period days in any month.
+      final allLogs = await getAllPeriodLogs();
+      // Chain enough future cycles to reach roughly two years out so users
+      // can scroll forward and still see projected dates.
+      final predictions = await predictUpcomingCycles(count: 24);
 
       List<DateTime> periodDays = [];
       List<DateTime> predictedPeriodDays = [];
       List<DateTime> ovulationDays = [];
       List<DateTime> pmsDays = [];
 
+      bool inMonth(DateTime d) =>
+          d.year == month.year && d.month == month.month;
+
       // Add logged period days
-      for (var log in logs) {
+      for (var log in allLogs) {
         DateTime current = log.startDate;
         DateTime end =
             log.endDate ?? log.startDate.add(const Duration(days: 5));
 
-        while (current.isBefore(end.add(const Duration(days: 1)))) {
-          if (current.month == month.month && current.year == month.year) {
-            periodDays.add(current);
-          }
+        while (!current.isAfter(end)) {
+          if (inMonth(current)) periodDays.add(current);
           current = current.add(const Duration(days: 1));
         }
       }
 
-      // Add predicted period days
-      if (prediction.predictedStartDate.month == month.month &&
-          prediction.predictedStartDate.year == month.year) {
+      // Walk every projected cycle and collect any day that lands in this month.
+      for (final prediction in predictions) {
+        // Skip projections that can't possibly intersect the visible month.
+        if (prediction.predictedEndDate.isBefore(monthStart) ||
+            prediction.pmsStartDate.isAfter(monthEnd)) {
+          continue;
+        }
+
         DateTime current = prediction.predictedStartDate;
-        while (current.isBefore(
-            prediction.predictedEndDate.add(const Duration(days: 1)))) {
-          predictedPeriodDays.add(current);
+        while (!current.isAfter(prediction.predictedEndDate)) {
+          if (inMonth(current)) predictedPeriodDays.add(current);
           current = current.add(const Duration(days: 1));
         }
-      }
 
-      // Add ovulation window (3 days around ovulation)
-      if (prediction.ovulationDate.month == month.month &&
-          prediction.ovulationDate.year == month.year) {
         for (int i = -1; i <= 1; i++) {
-          ovulationDays.add(prediction.ovulationDate.add(Duration(days: i)));
+          final day = prediction.ovulationDate.add(Duration(days: i));
+          if (inMonth(day)) ovulationDays.add(day);
         }
-      }
 
-      // Add PMS days (5 days before period)
-      if (prediction.pmsStartDate.month == month.month &&
-          prediction.pmsStartDate.year == month.year) {
-        DateTime current = prediction.pmsStartDate;
-        while (current.isBefore(prediction.predictedStartDate)) {
-          pmsDays.add(current);
-          current = current.add(const Duration(days: 1));
+        DateTime pms = prediction.pmsStartDate;
+        while (pms.isBefore(prediction.predictedStartDate)) {
+          if (inMonth(pms)) pmsDays.add(pms);
+          pms = pms.add(const Duration(days: 1));
         }
       }
 

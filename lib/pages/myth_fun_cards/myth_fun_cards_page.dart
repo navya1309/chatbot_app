@@ -44,7 +44,24 @@ class _MythFunCardsPageState extends State<MythFunCardsPage>
 
   void _nextCard(List cards) {
     setState(() {
-      currentIndex = (currentIndex + 1) % cards.length;
+      final wrapped = currentIndex + 1 >= cards.length;
+      if (wrapped) {
+        // We've cycled through the whole deck — reshuffle so the next pass
+        // feels like new content.
+        MythFunService.instance.reshuffle();
+        currentIndex = 0;
+      } else {
+        currentIndex = currentIndex + 1;
+      }
+      showBack = false;
+    });
+    _flipController.reverse();
+  }
+
+  void _shuffleDeck() {
+    setState(() {
+      MythFunService.instance.reshuffle();
+      currentIndex = 0;
       showBack = false;
     });
     _flipController.reverse();
@@ -77,13 +94,26 @@ class _MythFunCardsPageState extends State<MythFunCardsPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Learn & Discover',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Learn & Discover',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Shuffle deck',
+                        onPressed: _shuffleDeck,
+                        icon: const Icon(Icons.shuffle_rounded,
+                            color: Colors.white),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(

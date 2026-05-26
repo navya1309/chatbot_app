@@ -74,7 +74,13 @@ class _CycleLogFormState extends State<CycleLogForm> {
                   periodStart,
                   Icons.play_circle_outline,
                   const Color(0xFFEF4444),
-                  (date) => setState(() => periodStart = date),
+                  (date) => setState(() {
+                    periodStart = date;
+                    if (periodEnd != null && periodEnd!.isBefore(date)) {
+                      periodEnd = null;
+                    }
+                  }),
+                  initialDate: periodStart,
                 ),
                 Divider(height: 1, color: Colors.grey[200]),
                 _buildDateTile(
@@ -83,6 +89,8 @@ class _CycleLogFormState extends State<CycleLogForm> {
                   Icons.stop_circle_outlined,
                   const Color(0xFF6366F1),
                   (date) => setState(() => periodEnd = date),
+                  initialDate: periodEnd ?? periodStart,
+                  firstDate: periodStart,
                 ),
               ],
             ),
@@ -223,10 +231,16 @@ class _CycleLogFormState extends State<CycleLogForm> {
     DateTime? date,
     IconData icon,
     Color color,
-    Function(DateTime) onDateSelected,
-  ) {
+    Function(DateTime) onDateSelected, {
+    DateTime? initialDate,
+    DateTime? firstDate,
+  }) {
     return InkWell(
-      onTap: () => _pickDate(onDateSelected),
+      onTap: () => _pickDate(
+        onDateSelected,
+        initialDate: initialDate,
+        firstDate: firstDate,
+      ),
       borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -276,12 +290,22 @@ class _CycleLogFormState extends State<CycleLogForm> {
     );
   }
 
-  Future<void> _pickDate(Function(DateTime) onDateSelected) async {
+  Future<void> _pickDate(
+    Function(DateTime) onDateSelected, {
+    DateTime? initialDate,
+    DateTime? firstDate,
+  }) async {
+    final effectiveFirst = firstDate ?? DateTime(2020);
+    final now = DateTime.now();
+    final candidate = initialDate ?? now;
+    // showDatePicker requires initialDate >= firstDate.
+    final effectiveInitial =
+        candidate.isBefore(effectiveFirst) ? effectiveFirst : candidate;
     final date = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(DateTime.now().year + 2),
+      initialDate: effectiveInitial,
+      firstDate: effectiveFirst,
+      lastDate: DateTime(now.year + 2),
     );
     if (date != null) onDateSelected(date);
   }

@@ -78,6 +78,24 @@ class AuthenticationProvider extends ChangeNotifier {
     }
   }
 
+  // Send a password reset email via Firebase Auth. Firebase hosts the reset
+  // form and updates the password — no custom backend needed.
+  Future<bool> sendPasswordResetEmail(String email) async {
+    try {
+      _loading = true;
+      notifyListeners();
+      await _auth.sendPasswordResetEmail(email: email);
+      return true;
+    } on FirebaseAuthException catch (_) {
+      return false;
+    } catch (_) {
+      return false;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
   // Re-send the verification email for the currently signed-in user.
   Future<bool> resendVerificationEmail() async {
     final user = _auth.currentUser;

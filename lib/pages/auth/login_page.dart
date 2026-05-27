@@ -1,4 +1,5 @@
 import 'package:chatbot_app_1/core/utils.dart';
+import 'package:chatbot_app_1/pages/auth/forgot_password_page.dart';
 import 'package:chatbot_app_1/pages/auth/provider/auth_provider.dart';
 import 'package:chatbot_app_1/pages/auth/signup_page.dart';
 import 'package:flutter/material.dart';
@@ -148,7 +149,26 @@ class _LoginPageState extends State<LoginPage> {
                       },
                     ),
 
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 12),
+
+                    // Forgot Password Link
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: () =>
+                            moveTo(context, const ForgotPasswordPage()),
+                        child: Text(
+                          'Forgot Password?',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            color: _primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
 
                     // Sign In Button
                     Consumer<AuthenticationProvider>(

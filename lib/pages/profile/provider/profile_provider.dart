@@ -65,6 +65,26 @@ class ProfileProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Update profile ──
+
+  /// Updates the user's display name in Firestore and on the Firebase Auth
+  /// user record. Throws on failure so the UI can show an error.
+  Future<void> updateFullName(String newName) async {
+    final uid = currentUser?.uid;
+    if (uid == null) throw StateError('No signed-in user');
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) throw ArgumentError('Name cannot be empty');
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .set({'fullName': trimmed}, SetOptions(merge: true));
+    await currentUser?.updateDisplayName(trimmed);
+
+    _userData = {..._userData, 'fullName': trimmed};
+    notifyListeners();
+  }
+
   // ── Sign Out ──
 
   /// Signs out and navigates to the onboarding screen, clearing the entire

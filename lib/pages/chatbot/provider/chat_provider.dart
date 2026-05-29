@@ -71,6 +71,20 @@ class GeminiApi with ChangeNotifier {
     });
   }
 
+  // Messages exchanged since the last summary was persisted. We summarize
+  // every ~8 user messages so the journal insights have fresh material.
+  int _messagesSinceLastSummary = 0;
+  static const int _summaryEvery = 8;
+
+  // Words that signal emotionally significant moments — strong enough to
+  // create a "trigger" journal entry on the user's behalf when the toggle
+  // is enabled.
+  static const _triggerKeywords = [
+    'panic', 'anxious', 'anxiety', 'overwhelmed', 'can\'t cope', 'breakdown',
+    'depressed', 'depression', 'suicid', 'self-harm', 'hopeless',
+    'cried', 'crying', 'scared', 'terrified', 'lonely',
+  ];
+
   static const String _geminiKeyPath = 'config/gemini_api_key';
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -298,6 +312,12 @@ Don't give emergency advice or try to "fix" big issues.
         _messages.add(botMsg);
         notifyListeners();
         unawaited(_persistMessage(botMsg));
+
+        // Passive journaling hooks — only fire when user has the toggles on.
+        _messagesSinceLastSummary++;
+        unawaited(_maybeCreateTriggerEntry(prompt));
+        unawaited(_maybeSummarizeConversation());
+
         return res.body;
       }
 
@@ -333,6 +353,123 @@ Don't give emergency advice or try to "fix" big issues.
     } finally {
       _loading = false;
       notifyListeners();
+    }
+  }
+
+  // ── Passive journal entry hooks ─────────────────────────────
+  // Read the journaling settings doc so we can respect user preferences
+  // without coupling this provider directly to JournalingProvider.
+  Future<Map<String, dynamic>> _journalSettings() async {
+    final uid = _currentUserId;
+    if (uid == null) return const {};
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('settings')
+          .doc('journaling')
+          .get();
+      return doc.data() ?? const {};
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  Future<void> _maybeCreateTriggerEntry(String userMessage) async {
+    final uid = _currentUserId;
+    if (uid == null) return;
+    final settings = await _journalSettings();
+    if (settings['triggerBasedEntries'] != true) return;
+
+    final lower = userMessage.toLowerCase();
+    final matched = _triggerKeywords.firstWhere(
+      (k) => lower.contains(k),
+      orElse: () => '',
+    );
+    if (matched.isEmpty) return;
+
+    try {
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('journal_entries')
+          .add({
+        'title': 'Auto-captured moment',
+        'content':
+            'During chat, you mentioned: "${userMessage.length > 280 ? "${userMessage.substring(0, 280)}…" : userMessage}"\n\nWe saved this so you can revisit it later.',
+        'timestamp': DateTime.now().toIso8601String(),
+        'tags': ['chat', 'trigger', matched],
+        'moods': const <String>[],
+        'type': 'auto_reflection',
+        'isPassive': true,
+      });
+    } catch (e) {
+      log('Trigger entry write failed: $e');
+    }
+  }
+
+  Future<void> _maybeSummarizeConversation() async {
+    final uid = _currentUserId;
+    if (uid == null) return;
+    if (_messagesSinceLastSummary < _summaryEvery) return;
+
+    final settings = await _journalSettings();
+    if (settings['autoConversationSummary'] != true) return;
+
+    // Build a transcript of the last ~16 messages (8 exchanges) to summarize.
+    final tail = _messages.where((m) => !m.isError).toList();
+    final start = tail.length > 16 ? tail.length - 16 : 0;
+    final transcript = tail.sublist(start).map((m) {
+      final who = m.isUser ? 'User' : 'PillowTalk';
+      return '$who: ${m.text}';
+    }).join('\n');
+
+    try {
+      final key = await _loadGeminiKey();
+      final res = await http.post(
+        Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=$key',
+        ),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'contents': [
+            {
+              'role': 'user',
+              'parts': [
+                {
+                  'text':
+                      'Summarise the following chat in 2–3 warm, second-person '
+                          'sentences focusing on what the user expressed and '
+                          'any feelings they shared. Return plain text only.\n\n$transcript'
+                }
+              ],
+            },
+          ],
+          'generationConfig': {'temperature': 0.5},
+        }),
+      );
+      if (res.statusCode != 200) return;
+      final text = (jsonDecode(res.body)['candidates']?[0]?['content']
+              ?['parts']?[0]?['text'] as String?)
+          ?.trim();
+      if (text == null || text.isEmpty) return;
+
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('journal_entries')
+          .add({
+        'title': 'Chat summary',
+        'content': text,
+        'timestamp': DateTime.now().toIso8601String(),
+        'tags': const ['chat', 'summary'],
+        'moods': const <String>[],
+        'type': 'conversation_summary',
+        'isPassive': true,
+      });
+      _messagesSinceLastSummary = 0;
+    } catch (e) {
+      log('Conversation summary write failed: $e');
     }
   }
 

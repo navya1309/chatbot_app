@@ -37,6 +37,32 @@ class CycleService {
     }
   }
 
+  // Delete a period log by id.
+  Future<void> deletePeriodLog(String id) async {
+    if (_userId.isEmpty) {
+      throw Exception('User not logged in');
+    }
+    await _firestore
+        .collection('users')
+        .doc(_userId)
+        .collection('period_logs')
+        .doc(id)
+        .delete();
+  }
+
+  // Return logs whose period span (start..end inclusive) contains the given day.
+  Future<List<PeriodLog>> getLogsForDay(DateTime day) async {
+    final all = await getAllPeriodLogs();
+    return all.where((log) {
+      final end = log.endDate ?? log.startDate.add(const Duration(days: 5));
+      final atOrAfterStart =
+          !day.isBefore(DateTime(log.startDate.year, log.startDate.month, log.startDate.day));
+      final atOrBeforeEnd =
+          !day.isAfter(DateTime(end.year, end.month, end.day));
+      return atOrAfterStart && atOrBeforeEnd;
+    }).toList();
+  }
+
   // Get all period logs
   Future<List<PeriodLog>> getAllPeriodLogs() async {
     try {

@@ -17,6 +17,7 @@ class _MythFunCardsPageState extends State<MythFunCardsPage>
   int currentIndex = 0;
   bool isMythMode = true;
   late AnimationController _flipController;
+  bool _isRegenerating = false;
 
   @override
   void initState() {
@@ -25,12 +26,24 @@ class _MythFunCardsPageState extends State<MythFunCardsPage>
       vsync: this,
       duration: const Duration(milliseconds: 350),
     );
+    _markCurrentSeen();
   }
 
   @override
   void dispose() {
     _flipController.dispose();
     super.dispose();
+  }
+
+  void _markCurrentSeen() {
+    final service = MythFunService.instance;
+    final cards = isMythMode ? service.mythCards : service.funFactCards;
+    if (cards.isEmpty) return;
+    final card = cards[currentIndex % cards.length];
+    final id = isMythMode
+        ? (card as dynamic).id as String
+        : (card as dynamic).id as String;
+    service.markSeen(isMyth: isMythMode, cardId: id);
   }
 
   void _toggleCard() {
@@ -42,13 +55,49 @@ class _MythFunCardsPageState extends State<MythFunCardsPage>
     }
   }
 
-  void _nextCard(List cards) {
+  Future<void> _regenerateDeckFromGemini() async {
+    setState(() => _isRegenerating = true);
+    final ok = await MythFunService.instance
+        .regenerateFromGemini(isMyth: isMythMode);
+    if (!mounted) return;
     setState(() {
-      final wrapped = currentIndex + 1 >= cards.length;
-      if (wrapped) {
-        // We've cycled through the whole deck — reshuffle so the next pass
-        // feels like new content.
-        MythFunService.instance.reshuffle();
+      _isRegenerating = false;
+      currentIndex = 0;
+      showBack = false;
+    });
+    _flipController.reverse();
+    _markCurrentSeen();
+
+    if (!ok) {
+      // Fall back to a reshuffle so the user isn't stuck on the last card.
+      MythFunService.instance.reshuffle();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              "Couldn't refresh new cards right now — reshuffled instead."),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fresh cards ready 🎉')),
+      );
+    }
+  }
+
+  void _nextCard(List cards) {
+    final service = MythFunService.instance;
+    final atLast = currentIndex + 1 >= cards.length;
+    final allSeen = isMythMode ? service.allMythsSeen() : service.allFunFactsSeen();
+
+    if (atLast && allSeen) {
+      // Deck exhausted — pull a fresh batch from Gemini in the background.
+      _regenerateDeckFromGemini();
+      return;
+    }
+
+    setState(() {
+      if (atLast) {
+        service.reshuffle();
         currentIndex = 0;
       } else {
         currentIndex = currentIndex + 1;
@@ -56,6 +105,7 @@ class _MythFunCardsPageState extends State<MythFunCardsPage>
       showBack = false;
     });
     _flipController.reverse();
+    _markCurrentSeen();
   }
 
   void _shuffleDeck() {
@@ -174,15 +224,31 @@ class _MythFunCardsPageState extends State<MythFunCardsPage>
 
                   // Flip card
                   Expanded(
-                    child: card == null
+                    child: _isRegenerating
                         ? Center(
-                            child: Text(
-                              'No cards available.',
-                              style: GoogleFonts.inter(
-                                  fontSize: 16, color: Colors.grey[500]),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(
+                                    color: Color(0xFF6366F1)),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Generating fresh cards…',
+                                  style: GoogleFonts.inter(
+                                      fontSize: 14, color: Colors.grey[600]),
+                                ),
+                              ],
                             ),
                           )
-                        : GestureDetector(
+                        : card == null
+                            ? Center(
+                                child: Text(
+                                  'No cards available.',
+                                  style: GoogleFonts.inter(
+                                      fontSize: 16, color: Colors.grey[500]),
+                                ),
+                              )
+                            : GestureDetector(
                             onTap: _toggleCard,
                             child: AnimatedSwitcher(
                               duration: const Duration(milliseconds: 350),

@@ -161,6 +161,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     TextFormField(
                       controller: _passwordController,
                       obscureText: !_isPasswordVisible,
+                      onChanged: (_) => setState(() {}),
                       style: GoogleFonts.inter(fontSize: 15),
                       decoration: _inputDecoration(
                         hint: 'Create a password',
@@ -186,6 +187,11 @@ class _SignUpPageState extends State<SignUpPage> {
                         }
                         return null;
                       },
+                    ),
+
+                    const SizedBox(height: 10),
+                    _PasswordRequirements(
+                      password: _passwordController.text,
                     ),
 
                     const SizedBox(height: 18),
@@ -296,14 +302,16 @@ class _SignUpPageState extends State<SignUpPage> {
                                     );
                                     if (context.mounted) {
                                       if (res) {
-                                        // Pop back to the auth-gate
-                                        // StreamBuilder in main.dart; it will
+                                        // Reset to the auth gate so it can
                                         // render VerifyEmailPage based on the
-                                        // user's emailVerified status. Don't
-                                        // pushReplacement — that removes the
-                                        // gate and breaks sign-out routing.
+                                        // user's emailVerified status. Avoid
+                                        // popUntil isFirst — if the stack
+                                        // root is '/onboarding' (e.g. after a
+                                        // prior sign-out) we'd land back on
+                                        // onboarding instead of the gate.
                                         Navigator.of(context)
-                                            .popUntil((r) => r.isFirst);
+                                            .pushNamedAndRemoveUntil(
+                                                '/auth-gate', (_) => false);
                                       } else {
                                         showSnackBar(context,
                                             'Sign up failed. Please try again.');
@@ -430,6 +438,72 @@ class _SignUpPageState extends State<SignUpPage> {
         borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+    );
+  }
+}
+
+class _PasswordRequirements extends StatelessWidget {
+  final String password;
+
+  const _PasswordRequirements({required this.password});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLength = password.length >= 8;
+    final hasUpper = RegExp(r'[A-Z]').hasMatch(password);
+    final hasLower = RegExp(r'[a-z]').hasMatch(password);
+    final hasDigit = RegExp(r'\d').hasMatch(password);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Password must include:',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 6),
+          _row('At least 8 characters', hasLength),
+          _row('One uppercase letter (A–Z)', hasUpper),
+          _row('One lowercase letter (a–z)', hasLower),
+          _row('One number (0–9)', hasDigit),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(String label, bool met) {
+    final color = met ? const Color(0xFF10B981) : const Color(0xFF9CA3AF);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(
+            met ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+            size: 16,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              color: color,
+              fontWeight: met ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

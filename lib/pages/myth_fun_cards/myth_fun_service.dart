@@ -1,4 +1,9 @@
-import 'dart:math';
+import 'dart:convert';
+import 'dart:developer';
+import 'dart:math' hide log;
+
+import 'package:firebase_database/firebase_database.dart';
+import 'package:http/http.dart' as http;
 
 import 'myth_busting_card.dart';
 import 'fun_fact_card.dart';
@@ -12,6 +17,226 @@ class MythFunService {
     final seed = DateTime.now().millisecondsSinceEpoch;
     mythCards.shuffle(Random(seed));
     funFactCards.shuffle(Random(seed + 1));
+  }
+
+  // ── Gemini-backed fresh card generation ─────────────────────
+  static const String _geminiKeyPath = 'config/gemini_api_key';
+  String? _cachedGeminiKey;
+
+  // Tracks which card ids the user has already seen this session per mode so
+  // we can detect when the deck is exhausted and refill from Gemini.
+  final Set<String> _seenMythIds = {};
+  final Set<String> _seenFunIds = {};
+
+  // Flag so callers (e.g. the page) can show a spinner / disable interactions
+  // while we refill the deck from the network.
+  bool isGeneratingMyths = false;
+  bool isGeneratingFunFacts = false;
+
+  void markSeen({required bool isMyth, required String cardId}) {
+    if (isMyth) {
+      _seenMythIds.add(cardId);
+    } else {
+      _seenFunIds.add(cardId);
+    }
+  }
+
+  bool allMythsSeen() =>
+      mythCards.isNotEmpty && _seenMythIds.length >= mythCards.length;
+
+  bool allFunFactsSeen() =>
+      funFactCards.isNotEmpty && _seenFunIds.length >= funFactCards.length;
+
+  Future<String> _loadGeminiKey() async {
+    if (_cachedGeminiKey != null && _cachedGeminiKey!.isNotEmpty) {
+      return _cachedGeminiKey!;
+    }
+    final snap =
+        await FirebaseDatabase.instance.ref().child(_geminiKeyPath).get();
+    if (!snap.exists) {
+      throw StateError('Gemini API key missing at $_geminiKeyPath');
+    }
+    final value = snap.value;
+    if (value is! String || value.trim().isEmpty) {
+      throw StateError('Gemini API key invalid at $_geminiKeyPath');
+    }
+    _cachedGeminiKey = value.trim();
+    return _cachedGeminiKey!;
+  }
+
+  // Asks Gemini for a fresh batch of cards (myths or fun facts) and replaces
+  // the in-memory deck. Tries to avoid topics the user has already seen.
+  Future<bool> regenerateFromGemini({required bool isMyth}) async {
+    if (isMyth) {
+      isGeneratingMyths = true;
+    } else {
+      isGeneratingFunFacts = true;
+    }
+
+    try {
+      final key = await _loadGeminiKey();
+      final existing = (isMyth ? mythCards : funFactCards)
+          .map((c) => isMyth
+              ? (c as MythBustingCard).myth
+              : (c as FunFactCard).question)
+          .take(20)
+          .toList();
+
+      final prompt = isMyth
+          ? '''
+You are generating fresh "Myth vs Truth" cards for a teen wellness app.
+Cover topics like mental health, periods, brain/emotions, gender identity,
+relationships, sleep, body awareness. Be inclusive, non-judgmental, accurate.
+
+Avoid repeating these myths the user has already seen:
+${existing.map((e) => '- $e').join('\n')}
+
+Respond with **valid JSON only** (no markdown fences, no commentary) using
+this exact shape:
+
+{
+  "cards": [
+    {
+      "myth": "Short common misconception, 1 sentence.",
+      "truth": "Accurate, gentle correction. 1–2 sentences.",
+      "category": "MentalHealth | Periods | BrainEmotions | GenderIdentity | BodyAwesome | RelationshipsConsent | SleepDreams"
+    }
+  ]
+}
+
+Generate exactly 12 new cards.
+'''
+          : '''
+You are generating fresh "Fun Fact" cards for a teen wellness app.
+Topics: body, brain, emotions, periods, sleep, science of feelings.
+Each fact should be surprising, accurate, and teen-friendly.
+
+Avoid repeating these facts the user has already seen:
+${existing.map((e) => '- $e').join('\n')}
+
+Respond with **valid JSON only** (no markdown fences, no commentary) using
+this exact shape:
+
+{
+  "cards": [
+    {
+      "question": "Did you know ... ? (1 line hook)",
+      "fact": "1–2 sentence reveal that's accurate and warm.",
+      "category": "BodyAwesome | BrainEmotions | FunScienceFeelings | Periods | SleepDreams"
+    }
+  ]
+}
+
+Generate exactly 12 new cards.
+''';
+
+      final res = await http.post(
+        Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=$key',
+        ),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'contents': [
+            {
+              'role': 'user',
+              'parts': [
+                {'text': prompt},
+              ],
+            },
+          ],
+          'generationConfig': {
+            'responseMimeType': 'application/json',
+            'temperature': 0.9,
+          },
+        }),
+      );
+
+      if (res.statusCode != 200) {
+        log('Gemini card regen failed: ${res.statusCode} ${res.body}');
+        return false;
+      }
+
+      final body = jsonDecode(res.body);
+      final text = body['candidates']?[0]?['content']?['parts']?[0]?['text'];
+      if (text is! String || text.trim().isEmpty) return false;
+
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(text) as Map<String, dynamic>;
+      } catch (_) {
+        final start = text.indexOf('{');
+        final end = text.lastIndexOf('}');
+        if (start < 0 || end <= start) return false;
+        parsed = jsonDecode(text.substring(start, end + 1))
+            as Map<String, dynamic>;
+      }
+
+      final cards = parsed['cards'] as List?;
+      if (cards == null || cards.isEmpty) return false;
+
+      if (isMyth) {
+        final fresh = <MythBustingCard>[];
+        for (var i = 0; i < cards.length; i++) {
+          final c = cards[i] as Map<String, dynamic>;
+          final myth = (c['myth'] as String?)?.trim();
+          final truth = (c['truth'] as String?)?.trim();
+          if (myth == null || truth == null || myth.isEmpty || truth.isEmpty) {
+            continue;
+          }
+          fresh.add(MythBustingCard(
+            id: 'gen-m-${DateTime.now().millisecondsSinceEpoch}-$i',
+            myth: myth,
+            truth: truth,
+            category: _parseCategory(c['category'] as String?),
+          ));
+        }
+        if (fresh.isEmpty) return false;
+        mythCards = fresh;
+        _seenMythIds.clear();
+      } else {
+        final fresh = <FunFactCard>[];
+        for (var i = 0; i < cards.length; i++) {
+          final c = cards[i] as Map<String, dynamic>;
+          final question = (c['question'] as String?)?.trim();
+          final fact = (c['fact'] as String?)?.trim();
+          if (question == null ||
+              fact == null ||
+              question.isEmpty ||
+              fact.isEmpty) {
+            continue;
+          }
+          fresh.add(FunFactCard(
+            id: 'gen-f-${DateTime.now().millisecondsSinceEpoch}-$i',
+            question: question,
+            fact: fact,
+            category: _parseCategory(c['category'] as String?),
+          ));
+        }
+        if (fresh.isEmpty) return false;
+        funFactCards = fresh;
+        _seenFunIds.clear();
+      }
+      return true;
+    } catch (e, stack) {
+      log('regenerateFromGemini failed: $e\n$stack');
+      return false;
+    } finally {
+      if (isMyth) {
+        isGeneratingMyths = false;
+      } else {
+        isGeneratingFunFacts = false;
+      }
+    }
+  }
+
+  CardCategory _parseCategory(String? raw) {
+    if (raw == null) return CardCategory.MentalHealth;
+    for (final c in CardCategory.values) {
+      if (c.toString().split('.').last.toLowerCase() == raw.trim().toLowerCase()) {
+        return c;
+      }
+    }
+    return CardCategory.MentalHealth;
   }
 
   List<MythBustingCard> mythCards = [

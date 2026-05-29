@@ -41,7 +41,9 @@ class _JournalingPageState extends State<JournalingPage>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<JournalingProvider>().loadAll();
+      final provider = context.read<JournalingProvider>();
+      provider.loadAll();
+      provider.loadAiInsightHistory();
     });
   }
 
@@ -261,31 +263,62 @@ class _JournalingPageState extends State<JournalingPage>
   Widget _buildTimelineTab(JournalingProvider provider) {
     final entries = provider.allEntries;
 
+    if (entries.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: provider.loadAll,
+        color: _primary,
+        child: _emptyState(
+          icon: Icons.auto_stories_rounded,
+          title: 'Nothing here yet',
+          subtitle:
+              'Your journal entries will appear here.\nTap the ✏️ button to start writing.',
+        ),
+      );
+    }
+
+    // Group entries by their day so the timeline reads like a calendar.
+    // Entries are already sorted descending by timestamp; keep that order.
+    final byDay = <String, List<JournalEntry>>{};
+    final dayOrder = <String>[];
+    for (final e in entries) {
+      final key = _dayKey(e.timestamp);
+      if (!byDay.containsKey(key)) {
+        byDay[key] = [];
+        dayOrder.add(key);
+      }
+      byDay[key]!.add(e);
+    }
+
     return RefreshIndicator(
       onRefresh: provider.loadAll,
       color: _primary,
-      child: entries.isEmpty
-          ? _emptyState(
-              icon: Icons.auto_stories_rounded,
-              title: 'Nothing here yet',
-              subtitle:
-                  'Your journal entries will appear here.\nTap the ✏️ button to start writing.',
-            )
-          : ListView.builder(
-              padding:
-                  const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: entries.length,
-              itemBuilder: (ctx, i) =>
-                  _EntryCard(
-                    entry: entries[i],
-                    onDelete: () =>
-                        _confirmDelete(ctx, provider, entries[i].id),
-                    onEdit: () =>
-                        _openEditor(ctx, provider, entry: entries[i]),
-                  ),
-            ),
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        itemCount: dayOrder.length,
+        itemBuilder: (ctx, i) {
+          final key = dayOrder[i];
+          final dayEntries = byDay[key]!;
+          final headerDate = dayEntries.first.timestamp;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DayHeader(date: headerDate, count: dayEntries.length),
+              const SizedBox(height: 8),
+              ...dayEntries.map((e) => _EntryCard(
+                    entry: e,
+                    onDelete: () => _confirmDelete(ctx, provider, e.id),
+                    onEdit: () => _openEditor(ctx, provider, entry: e),
+                  )),
+              const SizedBox(height: 8),
+            ],
+          );
+        },
+      ),
     );
   }
+
+  String _dayKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, "0")}-${d.day.toString().padLeft(2, "0")}';
 
   // ─────────────────────────────────────────
   //  Write Tab
@@ -686,6 +719,55 @@ class _JournalingPageState extends State<JournalingPage>
           ),
 
         const SizedBox(height: 20),
+
+        // AI Insights History — a chronological list of past AI reflections.
+        if (provider.aiInsightHistory.isNotEmpty) ...[
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Past Reflections',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1E1B4B),
+                  ),
+                ),
+              ),
+              Text(
+                '${provider.aiInsightHistory.length}',
+                style: GoogleFonts.inter(
+                    fontSize: 13, color: Colors.grey[500]),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                for (var i = 0;
+                    i < provider.aiInsightHistory.length && i < 10;
+                    i++) ...[
+                  _AiHistoryTile(snapshot: provider.aiInsightHistory[i]),
+                  if (i < provider.aiInsightHistory.length - 1 && i < 9)
+                    Divider(height: 1, color: Colors.grey[100]),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
 
         // Auto-reflection settings
         Text(
@@ -2381,6 +2463,286 @@ class _DoodlePreview extends StatelessWidget {
             color: const Color(0xFFF3F4F6),
             alignment: Alignment.center,
             child: const Icon(Icons.broken_image_outlined),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DayHeader extends StatelessWidget {
+  final DateTime date;
+  final int count;
+
+  const _DayHeader({required this.date, required this.count});
+
+  static const _weekdays = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+    'Friday', 'Saturday', 'Sunday'
+  ];
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  String _label() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d = DateTime(date.year, date.month, date.day);
+    final diff = today.difference(d).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    if (diff < 7) return _weekdays[date.weekday - 1];
+    return '${_weekdays[date.weekday - 1]}, ${_months[date.month - 1]} ${date.day}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 18,
+            decoration: BoxDecoration(
+              color: const Color(0xFF6366F1),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            _label(),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF1E1B4B),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${date.day}/${date.month}/${date.year}',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: Colors.grey[500],
+            ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              count == 1 ? '1 entry' : '$count entries',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF6366F1),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiHistoryTile extends StatelessWidget {
+  final AiInsightSnapshot snapshot;
+
+  const _AiHistoryTile({required this.snapshot});
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  String _fmtDate(DateTime d) =>
+      '${_months[d.month - 1]} ${d.day}, ${d.year}';
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = (snapshot.reflection ?? snapshot.moodSummary ?? '').trim();
+    return InkWell(
+      onTap: () => _openDetail(context),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.auto_awesome_rounded,
+                  color: Color(0xFF6366F1), size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _fmtDate(snapshot.generatedAt),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF1E1B4B),
+                    ),
+                  ),
+                  if (preview.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: Color(0xFF9CA3AF), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openDetail(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (_, scrollCtrl) => SingleChildScrollView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Text(
+                _fmtDate(snapshot.generatedAt),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF1E1B4B),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Week of ${_fmtDate(snapshot.weekStart)} – ${_fmtDate(snapshot.weekEnd)}',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                ),
+              ),
+              const SizedBox(height: 18),
+              if ((snapshot.moodSummary ?? '').isNotEmpty) ...[
+                Text(
+                  snapshot.moodSummary!,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1E1B4B),
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              if ((snapshot.reflection ?? '').isNotEmpty) ...[
+                Text(
+                  snapshot.reflection!,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: const Color(0xFF374151),
+                    height: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (snapshot.guidance.isNotEmpty) ...[
+                Text(
+                  'What might help',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[600],
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...snapshot.guidance.map((g) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('✦  ',
+                              style: TextStyle(color: Color(0xFF6366F1))),
+                          Expanded(
+                            child: Text(
+                              g,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                height: 1.5,
+                                color: const Color(0xFF374151),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+                const SizedBox(height: 12),
+              ],
+              if (snapshot.topTopics.isNotEmpty) ...[
+                Text(
+                  'Top topics',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[600],
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  snapshot.topTopics.join(', '),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),

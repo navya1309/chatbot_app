@@ -191,24 +191,38 @@ class MyApp extends StatelessWidget {
           indicatorSize: TabBarIndicatorSize.label,
         ),
       ),
-      home: StreamBuilder<User?>(
-          // userChanges() fires not just on sign-in/out but also when the
-          // user object updates (e.g. after reload() flips emailVerified
-          // to true). authStateChanges() would not re-fire and the gate
-          // would stay stuck on the verify screen.
-          stream: FirebaseAuth.instance.userChanges(),
-          builder: (context, asyncSnapshot) {
-            final user = asyncSnapshot.data;
-            if (asyncSnapshot.hasData && user != null) {
-              // Gate the app behind email verification.
-              return user.emailVerified
-                  ? BottomNavigation()
-                  : const VerifyEmailPage();
-            }
-            return const OnboardingPage();
-          }),
+      home: const AuthGate(),
       routes: {
-        '/onboarding': (_) => const OnboardingPage(),
+        // Both names point to the same auth gate so legacy callers that push
+        // '/onboarding' (e.g. sign-out flows) still land on a screen that
+        // reflects the current auth state.
+        '/onboarding': (_) => const AuthGate(),
+        '/auth-gate': (_) => const AuthGate(),
+      },
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      // userChanges() fires not just on sign-in/out but also when the
+      // user object updates (e.g. after reload() flips emailVerified
+      // to true). authStateChanges() would not re-fire and the gate
+      // would stay stuck on the verify screen.
+      stream: FirebaseAuth.instance.userChanges(),
+      builder: (context, asyncSnapshot) {
+        final user = asyncSnapshot.data;
+        if (asyncSnapshot.hasData && user != null) {
+          // Gate the app behind email verification.
+          return user.emailVerified
+              ? BottomNavigation()
+              : const VerifyEmailPage();
+        }
+        return const OnboardingPage();
       },
     );
   }

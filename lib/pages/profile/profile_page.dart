@@ -176,6 +176,8 @@ class ProfilePage extends StatelessWidget {
                         _sectionTitle('Account'),
                         const SizedBox(height: 10),
                         _card(children: [
+                          _editableNameRow(context, provider, fullName),
+                          const SizedBox(height: 4),
                           _infoRow('Email', email),
                         ]),
 
@@ -281,6 +283,64 @@ class ProfilePage extends StatelessWidget {
         ),
         child: Column(children: children),
       );
+
+  static Widget _editableNameRow(
+    BuildContext context,
+    ProfileProvider provider,
+    String fullName,
+  ) {
+    return InkWell(
+      onTap: () => _showEditNameDialog(context, provider, fullName),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 80,
+              child: Text(
+                'Name',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                fullName,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF374151),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.edit_outlined, size: 16, color: _primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Future<void> _showEditNameDialog(
+    BuildContext context,
+    ProfileProvider provider,
+    String currentName,
+  ) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => _EditNameDialog(
+        provider: provider,
+        initialName: currentName,
+      ),
+    );
+  }
 
   static Widget _infoRow(String label, String value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -392,3 +452,114 @@ class _GuideRow extends StatelessWidget {
     );
   }
 }
+
+class _EditNameDialog extends StatefulWidget {
+  final ProfileProvider provider;
+  final String initialName;
+
+  const _EditNameDialog({
+    required this.provider,
+    required this.initialName,
+  });
+
+  @override
+  State<_EditNameDialog> createState() => _EditNameDialogState();
+}
+
+class _EditNameDialogState extends State<_EditNameDialog> {
+  static const _primary = Color(0xFF6366F1);
+
+  late final TextEditingController _controller;
+  final _formKey = GlobalKey<FormState>();
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      await widget.provider.updateFullName(_controller.text);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+        'Edit Name',
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          color: const Color(0xFF1E1B4B),
+        ),
+      ),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            hintText: 'Your name',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          validator: (v) {
+            final t = (v ?? '').trim();
+            if (t.isEmpty) return 'Name cannot be empty';
+            if (t.length < 2) return 'Name too short';
+            return null;
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: Text('Cancel',
+              style: GoogleFonts.inter(color: Colors.grey[600])),
+        ),
+        ElevatedButton(
+          onPressed: _saving ? null : _save,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _primary,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Text('Save',
+                  style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white, fontWeight: FontWeight.w700)),
+        ),
+      ],
+    );
+  }
+}
+

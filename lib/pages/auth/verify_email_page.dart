@@ -41,8 +41,11 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
     if (_checking || !mounted) return;
     setState(() => _checking = true);
     final verified = await context.read<AuthenticationProvider>().reloadUser();
-    if (mounted) {
-      Navigator.of(context).popUntil((r) => r.isFirst);
+    if (mounted && verified) {
+      // Send the user back to the auth gate so it can route them into the
+      // app now that emailVerified is true.
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/auth-gate', (_) => false);
     }
     if (!mounted) return;
     setState(() => _checking = false);

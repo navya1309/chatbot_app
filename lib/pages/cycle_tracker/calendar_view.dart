@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'cycle_data_model.dart';
 import 'cycle_service.dart';
 
 class CalendarView extends StatefulWidget {
@@ -82,49 +83,149 @@ class _CalendarViewState extends State<CalendarView> {
       textColor = const Color(0xFFF59E0B);
     }
 
-    return Container(
-      margin: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: bgColor ??
-            (isToday ? const Color(0xFF6366F1).withOpacity(0.1) : Colors.white),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: borderColor ??
-              (isToday ? const Color(0xFF6366F1) : Colors.grey[200]!),
-          width: isToday ? 2 : 1,
-        ),
-        boxShadow: (isPeriod || isOvulation || isPMS || isToday)
-            ? [
-                BoxShadow(
-                  color:
-                      (borderColor ?? const Color(0xFF6366F1)).withOpacity(0.2),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
-      ),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            '${day.day}',
-            style: TextStyle(
-              color: isToday && borderColor == null
-                  ? const Color(0xFF6366F1)
-                  : textColor,
-              fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
-              fontSize: 15,
-            ),
+    return GestureDetector(
+      onTap: isPeriod ? () => _showDayDetails(day) : null,
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: bgColor ??
+              (isToday ? const Color(0xFF6366F1).withOpacity(0.1) : Colors.white),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: borderColor ??
+                (isToday ? const Color(0xFF6366F1) : Colors.grey[200]!),
+            width: isToday ? 2 : 1,
           ),
-          if (icon != null) ...[
-            const SizedBox(height: 2),
-            icon,
+          boxShadow: (isPeriod || isOvulation || isPMS || isToday)
+              ? [
+                  BoxShadow(
+                    color:
+                        (borderColor ?? const Color(0xFF6366F1)).withOpacity(0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '${day.day}',
+              style: TextStyle(
+                color: isToday && borderColor == null
+                    ? const Color(0xFF6366F1)
+                    : textColor,
+                fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 15,
+              ),
+            ),
+            if (icon != null) ...[
+              const SizedBox(height: 2),
+              icon,
+            ],
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDayDetails(DateTime day) async {
+    final logs = await _cycleService.getLogsForDay(day);
+    if (!mounted) return;
+    if (logs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No logged entry for this day.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Text(
+                'Entries on ${day.day}/${day.month}/${day.year}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...logs.map((log) => _LogTile(
+                    log: log,
+                    onDelete: () async {
+                      Navigator.pop(sheetCtx);
+                      await _confirmAndDelete(log);
+                    },
+                  )),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmAndDelete(PeriodLog log) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete entry?'),
+        content: const Text(
+            'This will remove the period log entry. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
+    if (ok != true) return;
+
+    try {
+      await _cycleService.deletePeriodLog(log.id);
+      await _loadCalendarData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Entry deleted.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not delete: $e')),
+      );
+    }
   }
 
   @override
@@ -333,4 +434,74 @@ class _CalendarViewState extends State<CalendarView> {
           ),
         ],
       );
+}
+
+class _LogTile extends StatelessWidget {
+  final PeriodLog log;
+  final VoidCallback onDelete;
+
+  const _LogTile({required this.log, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    final start = log.startDate;
+    final end = log.endDate;
+    final range = end == null
+        ? '${start.day}/${start.month}/${start.year}'
+        : '${start.day}/${start.month} → ${end.day}/${end.month}';
+    final symptoms = log.symptoms.entries
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFCA5A5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Period: $range',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFEF4444),
+                  ),
+                ),
+                if (log.flow != null) ...[
+                  const SizedBox(height: 4),
+                  Text('Flow: ${log.flow}/5'),
+                ],
+                if (symptoms.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text('Symptoms: ${symptoms.join(", ")}'),
+                ],
+                if (log.notes != null && log.notes!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    log.notes!,
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Delete entry',
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_outline_rounded,
+                color: Color(0xFFEF4444)),
+          ),
+        ],
+      ),
+    );
+  }
 }

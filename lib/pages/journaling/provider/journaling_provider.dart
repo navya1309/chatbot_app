@@ -183,6 +183,66 @@ class WeeklyInsight {
       );
 }
 
+class AiInsightSnapshot {
+  final String id;
+  final DateTime generatedAt;
+  final DateTime weekStart;
+  final DateTime weekEnd;
+  final String? moodSummary;
+  final String? reflection;
+  final List<String> guidance;
+  final List<String> topTopics;
+  final int totalEntries;
+
+  AiInsightSnapshot({
+    required this.id,
+    required this.generatedAt,
+    required this.weekStart,
+    required this.weekEnd,
+    required this.moodSummary,
+    required this.reflection,
+    required this.guidance,
+    required this.topTopics,
+    required this.totalEntries,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'generatedAt': generatedAt.toIso8601String(),
+        'weekStart': weekStart.toIso8601String(),
+        'weekEnd': weekEnd.toIso8601String(),
+        if (moodSummary != null) 'moodSummary': moodSummary,
+        if (reflection != null) 'reflection': reflection,
+        'guidance': guidance,
+        'topTopics': topTopics,
+        'totalEntries': totalEntries,
+      };
+
+  factory AiInsightSnapshot.fromJson(Map<String, dynamic> json) =>
+      AiInsightSnapshot(
+        id: (json['id'] as String?) ?? '',
+        generatedAt: DateTime.parse(json['generatedAt'] as String),
+        weekStart: DateTime.parse(json['weekStart'] as String),
+        weekEnd: DateTime.parse(json['weekEnd'] as String),
+        moodSummary: json['moodSummary'] as String?,
+        reflection: json['reflection'] as String?,
+        guidance: List<String>.from(json['guidance'] ?? const []),
+        topTopics: List<String>.from(json['topTopics'] ?? const []),
+        totalEntries: (json['totalEntries'] as num?)?.toInt() ?? 0,
+      );
+
+  AiInsightSnapshot copyWith({String? id}) => AiInsightSnapshot(
+        id: id ?? this.id,
+        generatedAt: generatedAt,
+        weekStart: weekStart,
+        weekEnd: weekEnd,
+        moodSummary: moodSummary,
+        reflection: reflection,
+        guidance: guidance,
+        topTopics: topTopics,
+        totalEntries: totalEntries,
+      );
+}
+
 class JournalingSettings {
   bool autoConversationSummary;
   bool moodAutoTagging;
@@ -400,8 +460,66 @@ this exact shape:
     notifyListeners();
     final enriched = await _enrichWithAi(weeklyInsight!);
     weeklyInsight = enriched;
+    // Snapshot this generation into history so the user can browse past
+    // reflections later.
+    await _persistInsightSnapshot(enriched);
     _refreshingAi = false;
     notifyListeners();
+  }
+
+  // ── AI Insight history ────────────────────────────────────
+  // Stored at users/<uid>/ai_insights/<auto-id>.
+  List<AiInsightSnapshot> aiInsightHistory = [];
+
+  Future<void> _persistInsightSnapshot(WeeklyInsight insight) async {
+    if (_userId.isEmpty) return;
+    // Only snapshot if the AI actually produced content; deterministic-only
+    // insights aren't worth keeping in history.
+    if ((insight.aiReflection ?? '').isEmpty &&
+        insight.aiGuidance.isEmpty &&
+        (insight.moodSummary ?? '').isEmpty) {
+      return;
+    }
+    try {
+      final snap = AiInsightSnapshot(
+        id: '',
+        generatedAt: DateTime.now(),
+        weekStart: insight.weekStart,
+        weekEnd: insight.weekEnd,
+        moodSummary: insight.moodSummary,
+        reflection: insight.aiReflection,
+        guidance: insight.aiGuidance,
+        topTopics: insight.topTopics,
+        totalEntries: insight.totalEntries,
+      );
+      final doc = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('ai_insights')
+          .add(snap.toJson());
+      aiInsightHistory.insert(0, snap.copyWith(id: doc.id));
+    } catch (e) {
+      log('Failed to persist AI insight snapshot: $e');
+    }
+  }
+
+  Future<void> loadAiInsightHistory() async {
+    if (_userId.isEmpty) return;
+    try {
+      final snap = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('ai_insights')
+          .orderBy('generatedAt', descending: true)
+          .limit(50)
+          .get();
+      aiInsightHistory = snap.docs
+          .map((d) => AiInsightSnapshot.fromJson({...d.data(), 'id': d.id}))
+          .toList();
+      notifyListeners();
+    } catch (e) {
+      log('Failed to load AI insight history: $e');
+    }
   }
 
   Future<void> _deleteStorageFile(String? path) async {

@@ -189,13 +189,16 @@ class _LoginPageState extends State<LoginPage> {
                                   );
                                   if (context.mounted) {
                                     if (res) {
-                                      // Pop back to the auth-gate StreamBuilder
-                                      // in main.dart, which will render the
-                                      // right screen based on auth state.
-                                      // Don't pushReplacement — that removes
-                                      // the gate and breaks sign-out routing.
+                                      // Reset the navigator to the auth gate
+                                      // so the StreamBuilder picks the right
+                                      // screen based on current auth state.
+                                      // popUntil isFirst would be wrong if the
+                                      // user got here from a stack that was
+                                      // reset to '/onboarding' on a prior
+                                      // sign-out — that route isn't the gate.
                                       Navigator.of(context)
-                                          .popUntil((r) => r.isFirst);
+                                          .pushNamedAndRemoveUntil(
+                                              '/auth-gate', (_) => false);
                                     } else {
                                       showSnackBar(context,
                                           'Sign in failed. Check your credentials.');

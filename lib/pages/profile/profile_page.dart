@@ -535,15 +535,15 @@ class _EditNameDialogState extends State<_EditNameDialog> {
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.pop(context),
-          child: Text('Cancel',
-              style: GoogleFonts.inter(color: Colors.grey[600])),
+          child:
+              Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600])),
         ),
         ElevatedButton(
           onPressed: _saving ? null : _save,
           style: ElevatedButton.styleFrom(
             backgroundColor: _primary,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: _saving
               ? const SizedBox(
@@ -562,4 +562,3 @@ class _EditNameDialogState extends State<_EditNameDialog> {
     );
   }
 }
-
